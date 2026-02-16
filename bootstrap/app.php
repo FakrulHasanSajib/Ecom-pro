@@ -3,9 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
-
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -15,22 +13,28 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        // ১. Web Middleware (Inertia setup)
+
+        // ১. Stateful API (লারাভেল ১২ এ 401 Unauthorized ফিক্স করার জন্য মাস্ট)
+        // এটি আপনার api.php রাউটগুলোতে ব্রাউজার সেশন এবং কুকি ব্যবহারের অনুমতি দেবে
+        $middleware->statefulApi();
+
+        // ২. Web Middleware (Inertia setup)
         $middleware->web(append: [
             \App\Http\Middleware\HandleInertiaRequests::class,
             \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
         ]);
 
-        // ২. CSRF Exclude (For SSLCommerz)
+        // ৩. CSRF Exclude (SSLCommerz বা বাইরের পেমেন্ট গেটওয়ের জন্য)
         $middleware->validateCsrfTokens(except: [
             'api/payment/*',
+            'payment/*', // যদি এপিআই প্রিফিক্স ছাড়া থাকে
         ]);
 
-        // ৩. Middleware Alias (এটাই মিসিং ছিল)
+        // ৪. Middleware Alias
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
         ]);
     })
-    ->withExceptions(function (Exceptions $exceptions): void {
+    ->withExceptions(function (Exceptions $exceptions) {
         //
     })->create();

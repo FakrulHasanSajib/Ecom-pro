@@ -16,11 +16,15 @@ class Product extends Model implements HasMedia // ১. ইন্টারফে
     protected $fillable = [
         'category_id', 'name', 'slug', 'sku',
         'description', 'base_price', 'sale_price',
-        'total_stock', 'status', 'meta_data'
+        'total_stock', 'status', 'meta_data',
+        'slug', 'colors', 'sizes', 'tags'
     ];
 
     protected $casts = [
         'meta_data' => 'array',
+        'colors' => 'array',
+        'sizes' => 'array',
+        'tags' => 'array'
     ];
 
     public function category() {

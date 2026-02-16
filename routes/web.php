@@ -64,8 +64,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->grou
 
     // প্রোডাক্ট পেজ
     Route::get('/products', function () {
-        return Inertia::render('Admin/Products/Index');
-    })->name('products.index');
+        return Inertia::render('Admin/Products/Create');
+    })->name('products.create');
 
     // সেটিংস
     Route::get('/settings', [SettingController::class, 'index'])->name('settings.index');
