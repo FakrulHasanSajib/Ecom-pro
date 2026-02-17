@@ -63,7 +63,7 @@ public function generateSeo(Request $request)
     }
 
     // লারাভেল Http ক্লাসে অনেক সময় কুয়েরি প্যারামিটারে সমস্যা হয়, তাই সরাসরি URL এভাবে লিখুন:
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" . $apiKey;
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey;
 
     $prompt = "Generate SEO for product: '{$request->name}'. Return ONLY raw JSON with keys: \"meta_title\", \"meta_description\", \"tags\". No markdown.";
 
