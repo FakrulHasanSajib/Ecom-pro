@@ -5,8 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Services\CategoryService;
-use App\Http\Resources\CategoryResource;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 
 class CategoryController extends Controller
 {
@@ -17,46 +17,99 @@ class CategoryController extends Controller
         $this->categoryService = $categoryService;
     }
 
-    // ১. সব ক্যাটাগরি দেখার জন্য API
- public function index()
-{
-    // সব ক্যাটাগরি গেট করুন
-    $categories = \App\Models\Category::all();
+    /**
+     * ১. ক্যাটাগরি লিস্ট (API)
+     * URL: GET /api/admin/categories
+     */
+    public function index(): JsonResponse
+    {
+        // ক্যাটাগরিগুলো লেটেস্ট অনুযায়ী নিয়ে আসা
+        $categories = Category::with('parent')->latest()->get();
 
-    // সরাসরি ডাটা রিটার্ন করুন (Inertia::render করবেন না এখানে)
-    return response()->json($categories);
-}
+        return response()->json([
+            'status' => 'success',
+            'data' => $categories
+        ], 200);
+    }
 
-    // ২. নতুন ক্যাটাগরি তৈরি করার API
-    public function store(Request $request)
+    /**
+     * ২. নতুন ক্যাটাগরি তৈরি করা (API)
+     * URL: POST /api/admin/categories
+     */
+    public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:categories',
+            'name'      => 'required|string|max:255|unique:categories',
             'parent_id' => 'nullable|exists:categories,id',
             'is_active' => 'boolean'
         ]);
 
-        $category = $this->categoryService->createCategory($validated);
-        return new CategoryResource($category);
+        try {
+            // সার্ভিস ব্যবহার করে ক্যাটাগরি তৈরি
+            $category = $this->categoryService->createCategory($validated);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Category created successfully!',
+                'data'    => $category
+            ], 201);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Failed to create category: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
-    // ৩. ক্যাটাগরি আপডেট করার API
-    public function update(Request $request, Category $category)
+    /**
+     * ৩. ক্যাটাগরি আপডেট করা (API)
+     * URL: PUT/PATCH /api/admin/categories/{category}
+     */
+    public function update(Request $request, Category $category): JsonResponse
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name,'.$category->id,
+            'name'      => 'required|string|max:255|unique:categories,name,' . $category->id,
             'parent_id' => 'nullable|exists:categories,id',
             'is_active' => 'boolean'
         ]);
 
-        $updatedCategory = $this->categoryService->updateCategory($category, $validated);
-        return new CategoryResource($updatedCategory);
+        try {
+            $updatedCategory = $this->categoryService->updateCategory($category, $validated);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Category updated successfully!',
+                'data'    => $updatedCategory
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Update failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
-    // ৪. ক্যাটাগরি ডিলিট করার API
-    public function destroy(Category $category)
+    /**
+     * ৪. ক্যাটাগরি ডিলিট করা (API)
+     * URL: DELETE /api/admin/categories/{category}
+     */
+    public function destroy(Category $category): JsonResponse
     {
-        $this->categoryService->deleteCategory($category);
-        return response()->json(['message' => 'Category deleted successfully']);
+        try {
+            $this->categoryService->deleteCategory($category);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Category deleted successfully!'
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Delete failed: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

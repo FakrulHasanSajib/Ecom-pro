@@ -4,135 +4,118 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
-use App\Models\Testimonial;
-use App\Models\Tag;
-use App\Models\ProductTag;
-
 use App\Models\Category;
 use App\Models\Brand;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Inertia\Inertia;
 
 class ProductController extends Controller
 {
     /**
-     * ১. প্রোডাক্ট লিস্ট পেজ (Inertia Render)
+     * ১. প্রোডাক্ট লিস্ট (API)
+     * URL: GET /api/admin/products
      */
     public function index()
     {
-        // এটি ডাটাবেস থেকে প্রোডাক্ট নিয়ে ইনডেক্স পেজে পাঠাবে
-        $products = Product::with('category')->latest()->get();
-        return Inertia::render('Admin/Products/Index', [
-            'products' => $products
-        ]);
+        $products = Product::with(['category', 'brand'])->latest()->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $products
+        ], 200);
     }
 
     /**
-     * ২. প্রোডাক্ট ক্রিয়েট পেজ (Inertia Render)
+     * ২. প্রোডাক্ট এডিট ডাটা (API)
+     * URL: GET /api/admin/products/{id}
+     * (Create এর জন্য আলাদা API লাগে না, ফ্রন্টএন্ডে ফর্ম লোড হবে)
      */
-    public function create()
+    public function edit($id)
     {
-        return Inertia::render('Admin/Products/Create');
+        try {
+            $product = Product::with(['category', 'brand'])->findOrFail($id);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $product
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Product not found'], 404);
+        }
     }
 
     /**
-     * ৩. ড্রপডাউন ডাটা API (Vue থেকে Axios দিয়ে কল হবে)
+     * ৩. ড্রপডাউন ডাটা API (Categories)
+     * URL: GET /api/admin/list-categories
      */
     public function getCategories() {
         return response()->json(Category::select('id', 'name')->get());
     }
 
+    /**
+     * ৪. ড্রপডাউন ডাটা API (Brands)
+     * URL: GET /api/admin/list-brands
+     */
     public function getBrands() {
         return response()->json(Brand::select('id', 'name')->get());
     }
 
     /**
-     * ৪. গুগল জেমিনি (Gemini) AI SEO জেনারেটর
+     * ৫. গুগল জেমিনি (Gemini) AI SEO
+     * URL: POST /api/admin/products/generate-seo
      */
-public function generateSeo(Request $request)
-{
-    $request->validate(['name' => 'required|string']);
+    public function generateSeo(Request $request)
+    {
+        $request->validate(['name' => 'required|string']);
 
-    $apiKey = env('GEMINI_API_KEY');
+        $apiKey = env('GEMINI_API_KEY');
+        if (!$apiKey) return response()->json(['error' => 'API Key missing'], 500);
 
-    if (!$apiKey) {
-        return response()->json(['error' => 'API Key missing in .env'], 500);
-    }
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey;
+        $prompt = "Generate SEO metadata for product: '{$request->name}'. Return ONLY raw JSON with keys: \"meta_title\", \"meta_description\", \"tags\". No markdown.";
 
-    // লারাভেল Http ক্লাসে অনেক সময় কুয়েরি প্যারামিটারে সমস্যা হয়, তাই সরাসরি URL এভাবে লিখুন:
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" . $apiKey;
+        try {
+            $response = Http::withHeaders(['Content-Type' => 'application/json'])
+                ->withOptions(['verify' => false]) // Localhost SSL Fix
+                ->post($url, [
+                    'contents' => [['parts' => [['text' => $prompt]]]]
+                ]);
 
-    $prompt = "Generate SEO for product: '{$request->name}'. Return ONLY raw JSON with keys: \"meta_title\", \"meta_description\", \"tags\". No markdown.";
-
-    try {
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json'
-        ])->post($url, [
-            'contents' => [
-                [
-                    'parts' => [
-                        ['text' => $prompt]
-                    ]
-                ]
-            ]
-        ]);
-
-        if ($response->successful()) {
-            $result = $response->json();
-
-            // ডাটা চেক করা
-            if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-                $text = $result['candidates'][0]['content']['parts'][0]['text'];
-
-                // মার্কডাউন ব্যাকটিকস রিমুভ করা
+            if ($response->successful()) {
+                $text = $response->json()['candidates'][0]['content']['parts'][0]['text'] ?? '';
                 $cleanJson = trim(str_replace(['```json', '```'], '', $text));
-                $seoData = json_decode($cleanJson, true);
 
+                $seoData = json_decode($cleanJson, true);
                 if (json_last_error() === JSON_ERROR_NONE) {
                     return response()->json($seoData);
                 }
             }
-            return response()->json(['error' => 'AI returned invalid format'], 500);
+            return response()->json(['error' => 'AI Response Invalid'], 500);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Server Error: ' . $e->getMessage()], 500);
         }
-
-        // এপিআই থেকে আসা আসল এরর মেসেজ দেখার জন্য
-        return response()->json([
-            'error' => 'Gemini API Error',
-            'details' => $response->json()
-        ], $response->status());
-
-    } catch (\Exception $e) {
-        return response()->json(['error' => 'Server Error: ' . $e->getMessage()], 500);
     }
-}
 
     /**
-     * ৫. প্রোডাক্ট স্টোর/সেভ (API Method)
+     * ৬. প্রোডাক্ট স্টোর (Create API)
+     * URL: POST /api/admin/products
      */
     public function store(Request $request)
     {
-        // ক) ভ্যালিডেশন
         $request->validate([
             'name' => 'required|string|max:255',
             'category_id' => 'required',
-            'base_price' => 'required|numeric', // Regular Price
-            'purchase_price' => 'required|numeric',
+            'base_price' => 'required|numeric',
             'stock' => 'required|integer',
-            'slug' => 'nullable|string|unique:products,slug',
+            'thumbnail' => 'nullable|string',
         ]);
 
         try {
-            // খ) ডাটা প্রসেসিং (JSON বা Array হ্যান্ডেলিং)
-            $colors = is_string($request->colors) ? json_decode($request->colors) : $request->colors;
-            $sizes = is_string($request->sizes) ? json_decode($request->sizes) : $request->sizes;
-            $tags = is_string($request->tags) ? json_decode($request->tags) : $request->tags;
-            $testimonials = is_string($request->testimonials) ? json_decode($request->testimonials) : $request->testimonials;
-
-            // গ) প্রোডাক্ট ডাটাবেসে সেভ করা
-            $product = Product::create([
+            $productData = [
                 'name' => $request->name,
                 'slug' => $request->slug ?? Str::slug($request->name),
                 'sku' => $request->sku ?? 'SKU-' . time(),
@@ -144,14 +127,13 @@ public function generateSeo(Request $request)
                 'purchase_price' => $request->purchase_price,
                 'wholesale_price' => $request->wholesale_price ?? 0,
                 'reseller_price' => $request->reseller_price ?? 0,
-                'base_price' => $request->base_price, // Regular Price
-                'sale_price' => $request->offer_price, // Offer Price
+                'base_price' => $request->base_price,
+                'offer_price' => $request->offer_price, // sale_price or offer_price check model
                 'total_stock' => $request->stock,
 
                 // Details
                 'description' => $request->description,
                 'video_link' => $request->video_link,
-                'thumbnail' => $request->thumbnail, // Gallery থেকে পাওয়া URL
 
                 // Shipping & Status
                 'free_shipping' => filter_var($request->free_shipping, FILTER_VALIDATE_BOOLEAN),
@@ -159,40 +141,27 @@ public function generateSeo(Request $request)
                 'shipping_outside_dhaka' => $request->shipping_outside_dhaka,
                 'status' => 'published',
 
-                // JSON Fields (Castings in Model handles this)
-                'colors' => $colors,
-                'sizes' => $sizes,
-                'tags' => $tags,
-                'testimonials' => $testimonials,
+                // JSON Fields (Passed directly, Model $casts will handle array conversion)
+                'colors' => $request->colors,
+                'sizes' => $request->sizes,
+                'tags' => $request->tags,
+                'testimonials' => $request->testimonials,
+                'images' => $request->images, // Gallery Images Array
 
                 // SEO
                 'meta_title' => $request->meta_title,
                 'meta_description' => $request->meta_description,
-            ]);
+            ];
 
-            // ঘ) গ্যালারি ইমেজ প্রসেসিং (Spatie Media Library)
-            if ($request->images && is_array($request->images)) {
-                foreach ($request->images as $imageUrl) {
-                    try {
-                        // লোকাল স্টোরেজ পাথ ডিটেকশন
-                        $relativePath = str_replace(url('/storage'), '', $imageUrl);
-                        $absolutePath = public_path('storage' . $relativePath);
-
-                        if (file_exists($absolutePath)) {
-                            $product->addMedia($absolutePath)
-                                    ->preservingOriginal()
-                                    ->toMediaCollection('gallery');
-                        } else {
-                            // যদি এক্সটারনাল লিংক হয়
-                            $product->addMediaFromUrl($imageUrl)->toMediaCollection('gallery');
-                        }
-                    } catch (\Exception $e) {
-                        Log::warning("Image attach failed for URL: " . $imageUrl);
-                    }
-                }
+            // থাম্বনেইল হ্যান্ডলিং
+            if ($request->thumbnail) {
+                $productData['thumbnail'] = $this->handleThumbnailPath($request->thumbnail);
             }
 
+            $product = Product::create($productData);
+
             return response()->json([
+                'status' => 'success',
                 'message' => 'Product Created Successfully!',
                 'product_id' => $product->id
             ], 201);
@@ -202,16 +171,94 @@ public function generateSeo(Request $request)
             return response()->json(['message' => 'Internal Server Error: ' . $e->getMessage()], 500);
         }
     }
+
+    /**
+     * ৭. প্রোডাক্ট আপডেট (Update API)
+     * URL: POST /api/admin/products/{id}/update
+     */
+    public function update(Request $request, $id)
+    {
+        try {
+            $product = Product::findOrFail($id);
+
+            $request->validate([
+                'name' => 'required|string',
+                'base_price' => 'required|numeric',
+            ]);
+
+            $updateData = [
+                'name' => $request->name,
+                'slug' => $request->slug ?? Str::slug($request->name),
+                'category_id' => $request->category_id,
+                'brand_id' => $request->brand_id,
+                'unit' => $request->unit,
+
+                'purchase_price' => $request->purchase_price,
+                'wholesale_price' => $request->wholesale_price,
+                'reseller_price' => $request->reseller_price,
+                'base_price' => $request->base_price,
+                'offer_price' => $request->offer_price,
+                'total_stock' => $request->stock,
+
+                'description' => $request->description,
+                'video_link' => $request->video_link,
+
+                'free_shipping' => filter_var($request->free_shipping, FILTER_VALIDATE_BOOLEAN),
+                'shipping_inside_dhaka' => $request->shipping_inside_dhaka,
+                'shipping_outside_dhaka' => $request->shipping_outside_dhaka,
+
+                'colors' => $request->colors,
+                'sizes' => $request->sizes,
+                'tags' => $request->tags,
+                'testimonials' => $request->testimonials,
+                'images' => $request->images,
+
+                'meta_title' => $request->meta_title,
+                'meta_description' => $request->meta_description,
+            ];
+
+            // থাম্বনেইল আপডেট লজিক
+            if ($request->has('thumbnail') && $request->thumbnail) {
+                 $updateData['thumbnail'] = $this->handleThumbnailPath($request->thumbnail);
+            }
+
+            $product->update($updateData);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Product updated successfully'
+            ], 200);
+
+        } catch (\Exception $e) {
+            Log::error("Update Error: " . $e->getMessage());
+            return response()->json(['message' => 'Update Failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * ৮. প্রোডাক্ট ডিলিট (Delete API)
+     * URL: DELETE /api/admin/products/{id}
+     */
     public function destroy($id)
     {
         try {
             $product = Product::findOrFail($id);
             $product->delete();
-
-            return response()->json(['message' => 'Product deleted successfully']);
+            return response()->json(['status' => 'success', 'message' => 'Product deleted successfully']);
         } catch (\Exception $e) {
             return response()->json(['error' => 'Failed to delete product'], 500);
         }
     }
 
+    /**
+     * Helper: থাম্বনেইল পাথ ক্লিন করা
+     */
+    private function handleThumbnailPath($path)
+    {
+        if (str_contains($path, '/storage/')) {
+             $parts = explode('/storage/', $path);
+             return end($parts);
+        }
+        return $path;
+    }
 }

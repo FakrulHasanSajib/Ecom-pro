@@ -1,16 +1,48 @@
 <script setup>
 import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { ref, onMounted, watch } from 'vue';
+import { Head, Link, useForm, router } from '@inertiajs/vue3';
+import { ref, onMounted, watch, computed } from 'vue';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import MediaManager from '@/Components/MediaManager.vue';
 
+// --- Props (Receive Product for Edit Mode) ---
+const props = defineProps({
+    product: {
+        type: Object,
+        default: null
+    }
+});
 
+// --- Helper: Safe Data Parsers (Prevents White Screen) ---
 
+// 1. JSON Parse Helper (For Colors, Sizes, Images, Testimonials)
+const safeJsonParse = (data) => {
+    if (!data) return []; // যদি ডাটা নাল বা আনডিফাইনড হয়
+    if (Array.isArray(data)) return data; // যদি লারাভেল ইতিমধ্যে অ্যারে পাঠিয়ে থাকে
+    try {
+        return JSON.parse(data);
+    } catch (error) {
+        console.warn('JSON Parse Warning:', error);
+        return []; // এরর হলে ক্রাশ না করে খালি অ্যারে রিটার্ন করবে
+    }
+};
+
+// 2. Tags Parse Helper (For Tags)
+const safeTagsParse = (data) => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data; // অ্যারে হলে ফেরত দিবে
+    if (typeof data === 'string') {
+        // স্ট্রিং হলে কমা দিয়ে ভাগ করে স্পেস রিমুভ করবে
+        return data.split(',').map(tag => tag.trim()).filter(tag => tag !== "");
+    }
+    return [];
+};
 
 // --- State Variables ---
+const isEditMode = computed(() => !!props.product);
 const categories = ref([]);
 const brands = ref([]);
 const showMediaManager = ref(false);
@@ -18,15 +50,48 @@ const mediaTarget = ref('');
 const testimonialIndex = ref(null);
 const isSubmitting = ref(false);
 const isGeneratingSeo = ref(false);
+const tagInput = ref('');
 
+// --- Form Initialization ---
 const form = ref({
-    name: '', slug: '', category_id: '', brand_id: '', unit: 'Piece', sku: '', stock: 100,
-    purchase_price: '', wholesale_price: '', reseller_price: '', base_price: '', offer_price: '',
-    enable_variants: false, colors: [], sizes: [],
-    free_shipping: false, shipping_inside_dhaka: 80, shipping_outside_dhaka: 150,
-    thumbnail: null, images: [], video_link: '',
-    description: '', tags: [], meta_title: '', meta_description: '',
-    testimonials: []
+    name: props.product?.name || '',
+    slug: props.product?.slug || '',
+    category_id: props.product?.category_id || '',
+    brand_id: props.product?.brand_id || '',
+    unit: props.product?.unit || 'Piece',
+    sku: props.product?.sku || '',
+    stock: props.product?.stock || 100,
+
+    // Pricing
+    purchase_price: props.product?.purchase_price || '',
+    wholesale_price: props.product?.wholesale_price || '',
+    reseller_price: props.product?.reseller_price || '',
+    base_price: props.product?.base_price || '',
+    offer_price: props.product?.offer_price || '',
+
+    // Variants (Safe Parsed)
+    enable_variants: !!props.product?.enable_variants,
+    colors: safeJsonParse(props.product?.colors),
+    sizes: safeJsonParse(props.product?.sizes),
+
+    // Shipping
+    free_shipping: !!props.product?.free_shipping,
+    shipping_inside_dhaka: props.product?.shipping_inside_dhaka || 80,
+    shipping_outside_dhaka: props.product?.shipping_outside_dhaka || 150,
+
+    // Media (Safe Parsed)
+    thumbnail: props.product?.thumbnail || null,
+    images: safeJsonParse(props.product?.images),
+    video_link: props.product?.video_link || '',
+
+    // SEO & Description (Safe Parsed)
+    description: props.product?.description || '',
+    tags: safeTagsParse(props.product?.tags),
+    meta_title: props.product?.meta_title || '',
+    meta_description: props.product?.meta_description || '',
+
+    // Testimonials (Safe Parsed)
+    testimonials: safeJsonParse(props.product?.testimonials)
 });
 
 const availableSizes = ['S', 'M', 'L', 'XL', 'XXL'];
@@ -40,85 +105,46 @@ const availableColors = [
 onMounted(async () => {
     try {
         const [catRes, brandRes] = await Promise.all([
-            axios.get('/api/admin/list-categories'), // api.php এর সাথে মিল রেখে
+            axios.get('/api/admin/list-categories'),
             axios.get('/api/admin/list-brands')
         ]);
         categories.value = catRes.data;
         brands.value = brandRes.data;
     } catch (error) {
         console.error(error);
-        Swal.fire({ icon: 'error', title: 'Connection Error', text: 'Failed to load categories/brands' });
     }
 });
 
-// Auto Slug
-watch(() => form.value.name, (newVal) => {
-    form.value.slug = newVal.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-').replace(/^-+|-+$/g, '');
-});
+// Auto Slug (Only active in Create Mode)
+if (!isEditMode.value) {
+    watch(() => form.value.name, (newVal) => {
+        form.value.slug = newVal.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-').replace(/^-+|-+$/g, '');
+    });
+}
 
 // --- Gemini AI Logic ---
 const generateSeo = async () => {
-    // ১. নাম চেক করা
     if (!form.value.name) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'Wait!',
-            text: 'Please enter a Product Name first to generate SEO.'
-        });
+        Swal.fire({ icon: 'warning', title: 'Wait!', text: 'Please enter a Product Name first.' });
         return;
     }
-
     isGeneratingSeo.value = true;
-
     try {
-        // ২. এপিআই কল (আপনার রাউট অনুযায়ী)
         const response = await axios.post('/api/admin/products/generate-seo', {
             name: form.value.name,
             description: form.value.description
         });
-
         const data = response.data;
-
-        // ৩. ডাটা ফিল্ডে সেট করা
         form.value.meta_title = data.meta_title || '';
         form.value.meta_description = data.meta_description || '';
-
-        // ৪. ট্যাগ প্রসেসিং (স্ট্রিং বা অ্যারে যাই আসুক হ্যান্ডেল করবে)
         if (data.tags) {
-            let newTags = [];
-            if (Array.isArray(data.tags)) {
-                newTags = data.tags;
-            } else {
-                // কমা দিয়ে আলাদা করে অ্যারে তৈরি এবং বাড়তি স্পেস রিমুভ
-                newTags = data.tags.split(',').map(tag => tag.trim());
-            }
-
-            // আগের ট্যাগের সাথে নতুন ট্যাগ মিশিয়ে ডুপ্লিকেট রিমুভ করা
+            let newTags = Array.isArray(data.tags) ? data.tags : data.tags.split(',').map(tag => tag.trim());
             const combinedTags = [...form.value.tags, ...newTags];
             form.value.tags = [...new Set(combinedTags.filter(tag => tag !== ""))];
         }
-
-        // ৫. সাকসেস মেসেজ
-        Swal.fire({
-            icon: 'success',
-            title: 'AI Magic!',
-            text: 'SEO Metadata Generated Successfully',
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 3000
-        });
-
+        Swal.fire({ icon: 'success', title: 'AI Magic!', text: 'SEO Generated Successfully', toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
     } catch (error) {
-        console.error("AI SEO Error:", error);
-
-        // ৬. এরর হ্যান্ডলিং (যদি এপিআই কি মিসিং থাকে বা অন্য সমস্যা হয়)
-        const errorMsg = error.response?.data?.error || 'Failed to connect to AI Service.';
-        Swal.fire({
-            icon: 'error',
-            title: 'AI Error',
-            text: errorMsg
-        });
+        Swal.fire({ icon: 'error', title: 'AI Error', text: error.response?.data?.error || 'Failed to connect.' });
     } finally {
         isGeneratingSeo.value = false;
     }
@@ -132,54 +158,76 @@ const openGallery = (target, index = null) => {
 };
 
 const handleMediaSelect = (url) => {
-    if (mediaTarget.value === 'thumbnail') form.value.thumbnail = url;
-    else if (mediaTarget.value === 'gallery') {
-        if (!form.value.images.includes(url)) form.value.images.push(url);
+    if (mediaTarget.value === 'thumbnail') {
+        form.value.thumbnail = url;
+    } else if (mediaTarget.value === 'gallery') {
+        if (!form.value.images.includes(url)) { // ডুপ্লিকেট চেক
+            form.value.images.push(url);
+        }
     } else if (mediaTarget.value === 'testimonial' && testimonialIndex.value !== null) {
         form.value.testimonials[testimonialIndex.value].image = url;
     }
     showMediaManager.value = false;
 };
 
-// --- Testimonial Logic ---
+// --- Testimonial & Tags ---
 const addTestimonial = () => form.value.testimonials.push({ type: 'text', content: '', image: '' });
 const removeTestimonial = (index) => form.value.testimonials.splice(index, 1);
+const addTag = () => { if(tagInput.value) { form.value.tags.push(tagInput.value); tagInput.value = ''; } };
 
-// --- Submit Logic ---
+// --- Submit Logic (Create or Update) ---
 const submitProduct = async () => {
     isSubmitting.value = true;
+
+    // সাবমিট করার আগে ডাটা কপি করা
+    const submitData = { ...form.value };
+
+    // Tags কে স্ট্রিং এ কনভার্ট করা (যদি ব্যাকএন্ড স্ট্রিং আশা করে)
+    // যদি আপনার ব্যাকএন্ড অ্যারে সাপোর্ট করে, তবে নিচের লাইনটি বাদ দিতে পারেন
+    // submitData.tags = Array.isArray(form.value.tags) ? form.value.tags.join(',') : form.value.tags;
+
     try {
-        await axios.post('/api/admin/products', form.value);
+        if (isEditMode.value) {
+            // Update Existing Product
+            await axios.post(`/api/admin/products/${props.product.id}/update`, submitData);
+            Swal.fire({ icon: 'success', title: 'Updated!', text: 'Product Updated Successfully!' });
+        } else {
+            // Create New Product
+            await axios.post('/api/admin/products', submitData);
+            Swal.fire({ icon: 'success', title: 'Created!', text: 'Product Created Successfully!' });
+        }
 
-        await Swal.fire({
-            icon: 'success', title: 'Success!',
-            text: 'Product Created Successfully!', confirmButtonColor: '#10b981'
-        });
+        // সফল হলে লিস্ট পেজে নিয়ে যাওয়া
+        router.visit('/admin/products');
 
-        window.location.reload();
     } catch (error) {
+        console.error(error);
         let msg = error.response?.data?.message || 'Something went wrong!';
         Swal.fire({ icon: 'error', title: 'Error', text: msg });
     } finally {
         isSubmitting.value = false;
     }
 };
-
-const tagInput = ref('');
-const addTag = () => { if(tagInput.value) { form.value.tags.push(tagInput.value); tagInput.value = ''; } };
 </script>
 
 <template>
+    <Head :title="isEditMode ? 'Edit Product' : 'Create Product'" />
+
     <AdminLayout>
         <MediaManager v-if="showMediaManager" @close="showMediaManager = false" @select="handleMediaSelect" />
 
         <div class="product-form-container">
             <div class="header-section">
                 <div class="header-text">
-                    <h4><i class="bi bi-plus-circle-fill me-2"></i>Create New Product</h4>
-                    <p>Fill all the information details correctly</p>
+                    <h4>
+                        <i :class="isEditMode ? 'bi-pencil-square' : 'bi-plus-circle-fill'" class="me-2"></i>
+                        {{ isEditMode ? 'Edit Product' : 'Create New Product' }}
+                    </h4>
+                    <p>{{ isEditMode ? 'Update product information' : 'Fill all the information details correctly' }}</p>
                 </div>
-                <button class="btn-manage shadow-sm"><i class="bi bi-list-ul me-2"></i>Product List</button>
+                <Link href="/admin/products" class="btn-manage shadow-sm text-decoration-none">
+                    <i class="bi bi-list-ul me-2"></i>Product List
+                </Link>
             </div>
 
             <form @submit.prevent="submitProduct">
@@ -229,7 +277,7 @@ const addTag = () => { if(tagInput.value) { form.value.tags.push(tagInput.value)
                     <div class="card-body">
                         <div class="price-grid">
                             <div class="price-card">
-                                <span class="price-label">Purchase Price <span class="required">*</span></span>
+                                <span class="price-label">Purchase Price</span>
                                 <div class="input-with-icon">
                                     <span>৳</span>
                                     <input v-model="form.purchase_price" type="number" placeholder="0.00">
@@ -334,7 +382,7 @@ const addTag = () => { if(tagInput.value) { form.value.tags.push(tagInput.value)
                                 <div class="thumbnail-uploader" @click="openGallery('thumbnail')">
                                     <div v-if="form.thumbnail" class="preview-full">
                                         <img :src="form.thumbnail">
-                                        <button @click.stop="form.thumbnail = null" class="btn-remove-float">&times;</button>
+                                        <button type="button" @click.stop="form.thumbnail = null" class="btn-remove-float">&times;</button>
                                     </div>
                                     <div v-else class="upload-placeholder">
                                         <i class="bi bi-cloud-upload text-3xl"></i>
@@ -351,7 +399,7 @@ const addTag = () => { if(tagInput.value) { form.value.tags.push(tagInput.value)
                                         </div>
                                         <div v-for="(img, idx) in form.images" :key="idx" class="preview-box">
                                             <img :src="img">
-                                            <button @click="form.images.splice(idx, 1)" class="btn-remove-mini">&times;</button>
+                                            <button type="button" @click="form.images.splice(idx, 1)" class="btn-remove-mini">&times;</button>
                                         </div>
                                     </div>
                                 </div>
@@ -424,7 +472,7 @@ const addTag = () => { if(tagInput.value) { form.value.tags.push(tagInput.value)
                         <div v-for="(testi, idx) in form.testimonials" :key="idx" class="testimonial-row">
                             <div class="testi-header">
                                 <span class="badge-count">#{{ idx + 1 }}</span>
-                                <button @click="removeTestimonial(idx)" class="btn-trash"><i class="bi bi-trash"></i></button>
+                                <button type="button" @click="removeTestimonial(idx)" class="btn-trash"><i class="bi bi-trash"></i></button>
                             </div>
                             <div class="grid-testimonial">
                                 <div class="form-group">
@@ -450,7 +498,7 @@ const addTag = () => { if(tagInput.value) { form.value.tags.push(tagInput.value)
                                     <div v-else>
                                         <label>Review Image</label>
                                         <div class="flex gap-3 items-center">
-                                            <button @click="openGallery('testimonial', idx)" class="btn-browse-small">Select</button>
+                                            <button type="button" @click="openGallery('testimonial', idx)" class="btn-browse-small">Select</button>
                                             <img v-if="testi.image" :src="testi.image" class="h-10 rounded border">
                                             <input type="text" v-model="testi.image" class="form-control-enhanced" readonly>
                                         </div>
@@ -464,7 +512,10 @@ const addTag = () => { if(tagInput.value) { form.value.tags.push(tagInput.value)
                 <div class="submit-section">
                     <button type="submit" :disabled="isSubmitting" class="btn-submit-final">
                         <span v-if="isSubmitting" class="spinner-border spinner-border-sm me-2"></span>
-                        <span v-else><i class="bi bi-check-circle-fill me-2"></i> Publish Product</span>
+                        <span v-else>
+                            <i :class="isEditMode ? 'bi-check2-circle' : 'bi-check-circle-fill'" class="me-2"></i>
+                            {{ isEditMode ? 'Update Product' : 'Publish Product' }}
+                        </span>
                     </button>
                 </div>
             </form>
@@ -478,7 +529,7 @@ const addTag = () => { if(tagInput.value) { form.value.tags.push(tagInput.value)
 .header-section { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
 .header-text h4 { font-weight: 800; color: #111827; margin: 0; font-size: 1.5rem; }
 .header-text p { color: #6b7280; margin: 5px 0 0; font-size: 0.9rem; }
-.btn-manage { background: white; border: 1px solid #e5e7eb; padding: 10px 20px; border-radius: 8px; font-weight: 600; color: #374151; transition: 0.2s; }
+.btn-manage { background: white; border: 1px solid #e5e7eb; padding: 10px 20px; border-radius: 8px; font-weight: 600; color: #374151; transition: 0.2s; display: flex; align-items: center; }
 .btn-manage:hover { background: #f9fafb; border-color: #d1d5db; }
 
 /* --- CARDS --- */
