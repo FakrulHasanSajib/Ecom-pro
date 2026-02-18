@@ -202,5 +202,16 @@ public function generateSeo(Request $request)
             return response()->json(['message' => 'Internal Server Error: ' . $e->getMessage()], 500);
         }
     }
+    public function destroy($id)
+    {
+        try {
+            $product = Product::findOrFail($id);
+            $product->delete();
+
+            return response()->json(['message' => 'Product deleted successfully']);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to delete product'], 500);
+        }
+    }
 
 }

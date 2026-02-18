@@ -74,6 +74,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::post('/products/generate-seo', [ProductController::class, 'generateSeo']);
     Route::apiResource('categories', CategoryController::class);
     Route::apiResource('sliders', SliderController::class);
+    Route::delete('/products/{id}', [ProductController::class, 'destroy']);
 
     // মিডিয়া ম্যানেজার (গ্যালারি)
     Route::get('/media', [MediaController::class, 'index']);
