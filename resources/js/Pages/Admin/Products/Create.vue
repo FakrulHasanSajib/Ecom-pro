@@ -1,48 +1,22 @@
 <script setup>
-import AdminLayout from '@/Layouts/AdminLayout.vue';
-import { Head, Link, useForm, router } from '@inertiajs/vue3';
 import { ref, onMounted, watch, computed } from 'vue';
+import { useRouter, useRoute } from 'vue-router'; // Inertia বাদ দিয়ে Vue Router
 import axios from 'axios';
 import Swal from 'sweetalert2';
+import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
 import MediaManager from '@/Components/MediaManager.vue';
 
-// --- Props (Receive Product for Edit Mode) ---
-const props = defineProps({
-    product: {
-        type: Object,
-        default: null
-    }
-});
-
-// --- Helper: Safe Data Parsers (Prevents White Screen) ---
-
-// 1. JSON Parse Helper (For Colors, Sizes, Images, Testimonials)
-const safeJsonParse = (data) => {
-    if (!data) return []; // যদি ডাটা নাল বা আনডিফাইনড হয়
-    if (Array.isArray(data)) return data; // যদি লারাভেল ইতিমধ্যে অ্যারে পাঠিয়ে থাকে
-    try {
-        return JSON.parse(data);
-    } catch (error) {
-        console.warn('JSON Parse Warning:', error);
-        return []; // এরর হলে ক্রাশ না করে খালি অ্যারে রিটার্ন করবে
-    }
-};
-
-// 2. Tags Parse Helper (For Tags)
-const safeTagsParse = (data) => {
-    if (!data) return [];
-    if (Array.isArray(data)) return data; // অ্যারে হলে ফেরত দিবে
-    if (typeof data === 'string') {
-        // স্ট্রিং হলে কমা দিয়ে ভাগ করে স্পেস রিমুভ করবে
-        return data.split(',').map(tag => tag.trim()).filter(tag => tag !== "");
-    }
-    return [];
-};
+// --- Router Setup ---
+const router = useRouter();
+const route = useRoute();
 
 // --- State Variables ---
-const isEditMode = computed(() => !!props.product);
+// URL থেকে ID চেক করা হচ্ছে (Edit Mode এর জন্য)
+const productId = computed(() => route.params.id);
+const isEditMode = computed(() => !!productId.value);
+
 const categories = ref([]);
 const brands = ref([]);
 const showMediaManager = ref(false);
@@ -51,58 +25,55 @@ const testimonialIndex = ref(null);
 const isSubmitting = ref(false);
 const isGeneratingSeo = ref(false);
 const tagInput = ref('');
+const isLoadingData = ref(false); // ডাটা লোডিং এর জন্য
 
-// --- Form Initialization ---
+// --- Form Initialization (Reactive Object) ---
 const form = ref({
-    name: props.product?.name || '',
-    slug: props.product?.slug || '',
-    category_id: props.product?.category_id || '',
-    brand_id: props.product?.brand_id || '',
-    unit: props.product?.unit || 'Piece',
-    sku: props.product?.sku || '',
-    stock: props.product?.stock || 100,
-
-    // Pricing
-    purchase_price: props.product?.purchase_price || '',
-    wholesale_price: props.product?.wholesale_price || '',
-    reseller_price: props.product?.reseller_price || '',
-    base_price: props.product?.base_price || '',
-    offer_price: props.product?.offer_price || '',
-
-    // Variants (Safe Parsed)
-    enable_variants: !!props.product?.enable_variants,
-    colors: safeJsonParse(props.product?.colors),
-    sizes: safeJsonParse(props.product?.sizes),
-
-    // Shipping
-    free_shipping: !!props.product?.free_shipping,
-    shipping_inside_dhaka: props.product?.shipping_inside_dhaka || 80,
-    shipping_outside_dhaka: props.product?.shipping_outside_dhaka || 150,
-
-    // Media (Safe Parsed)
-    thumbnail: props.product?.thumbnail || null,
-    images: safeJsonParse(props.product?.images),
-    video_link: props.product?.video_link || '',
-
-    // SEO & Description (Safe Parsed)
-    description: props.product?.description || '',
-    tags: safeTagsParse(props.product?.tags),
-    meta_title: props.product?.meta_title || '',
-    meta_description: props.product?.meta_description || '',
-
-    // Testimonials (Safe Parsed)
-    testimonials: safeJsonParse(props.product?.testimonials)
+    name: '',
+    slug: '',
+    category_id: '',
+    brand_id: '',
+    unit: 'Piece',
+    sku: '',
+    stock: 100,
+    purchase_price: '',
+    wholesale_price: '',
+    reseller_price: '',
+    base_price: '',
+    offer_price: '',
+    enable_variants: false,
+    colors: [],
+    sizes: [],
+    free_shipping: false,
+    shipping_inside_dhaka: 80,
+    shipping_outside_dhaka: 150,
+    thumbnail: null,
+    images: [],
+    video_link: '',
+    description: '',
+    tags: [],
+    meta_title: '',
+    meta_description: '',
+    testimonials: []
 });
 
-const availableSizes = ['S', 'M', 'L', 'XL', 'XXL'];
-const availableColors = [
-    { name: 'Red', code: '#FF0000' }, { name: 'Blue', code: '#0000FF' },
-    { name: 'Black', code: '#000000' }, { name: 'White', code: '#FFFFFF' },
-    { name: 'Green', code: '#008000' }, { name: 'Yellow', code: '#FFFF00' }
-];
+// --- Helpers: Safe Parsers ---
+const safeJsonParse = (data) => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    try { return JSON.parse(data); } catch (e) { return []; }
+};
 
-// --- Initialization ---
+const safeTagsParse = (data) => {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (typeof data === 'string') return data.split(',').map(tag => tag.trim()).filter(tag => tag !== "");
+    return [];
+};
+
+// --- Initialization (API Calling) ---
 onMounted(async () => {
+    // ১. ক্যাটাগরি এবং ব্র্যান্ড লিস্ট লোড করা
     try {
         const [catRes, brandRes] = await Promise.all([
             axios.get('/api/admin/list-categories'),
@@ -111,23 +82,60 @@ onMounted(async () => {
         categories.value = catRes.data;
         brands.value = brandRes.data;
     } catch (error) {
-        console.error(error);
+        console.error("Dependency loading failed:", error);
+    }
+
+    // ২. যদি এডিট মোড হয়, তাহলে প্রোডাক্টের ডাটা আনা
+    if (isEditMode.value) {
+        isLoadingData.value = true;
+        try {
+            const response = await axios.get(`/api/admin/products/${productId.value}`);
+            const p = response.data.data || response.data; // ডাটা স্ট্রাকচার হ্যান্ডলিং
+
+            // ফর্মে ডাটা সেট করা
+            form.value = {
+                ...form.value, // ডিফল্ট ভ্যালু রাখা
+                ...p, // API থেকে আসা ডাটা ওভাররাইড করা
+                category_id: p.category_id || '',
+                brand_id: p.brand_id || '',
+                enable_variants: !!p.enable_variants, // 1/0 কে boolean এ কনভার্ট
+                free_shipping: !!p.free_shipping,
+
+                // JSON ডাটাগুলো পার্স করা
+                colors: safeJsonParse(p.colors),
+                sizes: safeJsonParse(p.sizes),
+                images: safeJsonParse(p.images),
+                testimonials: safeJsonParse(p.testimonials),
+                tags: safeTagsParse(p.tags),
+
+                // নাম্বার ফরম্যাট নিশ্চিত করা
+                stock: p.total_stock || p.stock,
+                purchase_price: p.purchase_price,
+                base_price: p.base_price
+            };
+        } catch (error) {
+            Swal.fire('Error', 'Failed to load product data', 'error');
+            router.push('/admin/products');
+        } finally {
+            isLoadingData.value = false;
+        }
     }
 });
 
-// Auto Slug (Only active in Create Mode)
-if (!isEditMode.value) {
-    watch(() => form.value.name, (newVal) => {
-        form.value.slug = newVal.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-').replace(/^-+|-+$/g, '');
-    });
-}
-
-// --- Gemini AI Logic ---
-const generateSeo = async () => {
-    if (!form.value.name) {
-        Swal.fire({ icon: 'warning', title: 'Wait!', text: 'Please enter a Product Name first.' });
-        return;
+// --- Auto Slug (Only for Create Mode) ---
+watch(() => form.value.name, (newVal) => {
+    if (!isEditMode.value) {
+        form.value.slug = newVal.toLowerCase().trim()
+            .replace(/[^\w\s-]/g, '')
+            .replace(/[\s_-]+/g, '-')
+            .replace(/^-+|-+$/g, '');
     }
+});
+
+// --- AI SEO Logic ---
+const generateSeo = async () => {
+    if (!form.value.name) return Swal.fire('Warning', 'Please enter Product Name first', 'warning');
+
     isGeneratingSeo.value = true;
     try {
         const response = await axios.post('/api/admin/products/generate-seo', {
@@ -135,22 +143,27 @@ const generateSeo = async () => {
             description: form.value.description
         });
         const data = response.data;
-        form.value.meta_title = data.meta_title || '';
+
+        form.value.meta_title = data.meta_title || form.value.name;
         form.value.meta_description = data.meta_description || '';
+
         if (data.tags) {
-            let newTags = Array.isArray(data.tags) ? data.tags : data.tags.split(',').map(tag => tag.trim());
-            const combinedTags = [...form.value.tags, ...newTags];
-            form.value.tags = [...new Set(combinedTags.filter(tag => tag !== ""))];
+            const newTags = safeTagsParse(data.tags);
+            form.value.tags = [...new Set([...form.value.tags, ...newTags])];
         }
-        Swal.fire({ icon: 'success', title: 'AI Magic!', text: 'SEO Generated Successfully', toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
+
+        Swal.fire({
+            icon: 'success', title: 'SEO Generated',
+            toast: true, position: 'top-end', showConfirmButton: false, timer: 2000
+        });
     } catch (error) {
-        Swal.fire({ icon: 'error', title: 'AI Error', text: error.response?.data?.error || 'Failed to connect.' });
+        Swal.fire('Error', 'AI generation failed. Check API Key.', 'error');
     } finally {
         isGeneratingSeo.value = false;
     }
 };
 
-// --- Gallery Logic ---
+// --- Gallery & Media Logic ---
 const openGallery = (target, index = null) => {
     mediaTarget.value = target;
     testimonialIndex.value = index;
@@ -161,49 +174,51 @@ const handleMediaSelect = (url) => {
     if (mediaTarget.value === 'thumbnail') {
         form.value.thumbnail = url;
     } else if (mediaTarget.value === 'gallery') {
-        if (!form.value.images.includes(url)) { // ডুপ্লিকেট চেক
-            form.value.images.push(url);
-        }
+        if (!form.value.images.includes(url)) form.value.images.push(url);
     } else if (mediaTarget.value === 'testimonial' && testimonialIndex.value !== null) {
         form.value.testimonials[testimonialIndex.value].image = url;
     }
     showMediaManager.value = false;
 };
 
-// --- Testimonial & Tags ---
+// --- Array Manipulations ---
 const addTestimonial = () => form.value.testimonials.push({ type: 'text', content: '', image: '' });
 const removeTestimonial = (index) => form.value.testimonials.splice(index, 1);
-const addTag = () => { if(tagInput.value) { form.value.tags.push(tagInput.value); tagInput.value = ''; } };
+const addTag = () => {
+    if(tagInput.value) {
+        form.value.tags.push(tagInput.value);
+        tagInput.value = '';
+    }
+};
 
-// --- Submit Logic (Create or Update) ---
+const availableSizes = ['S', 'M', 'L', 'XL', 'XXL'];
+const availableColors = [
+    { name: 'Red', code: '#FF0000' }, { name: 'Blue', code: '#0000FF' },
+    { name: 'Black', code: '#000000' }, { name: 'White', code: '#FFFFFF' },
+    { name: 'Green', code: '#008000' }, { name: 'Yellow', code: '#FFFF00' }
+];
+
+// --- Submit Logic (Unified) ---
 const submitProduct = async () => {
     isSubmitting.value = true;
-
-    // সাবমিট করার আগে ডাটা কপি করা
-    const submitData = { ...form.value };
-
-    // Tags কে স্ট্রিং এ কনভার্ট করা (যদি ব্যাকএন্ড স্ট্রিং আশা করে)
-    // যদি আপনার ব্যাকএন্ড অ্যারে সাপোর্ট করে, তবে নিচের লাইনটি বাদ দিতে পারেন
-    // submitData.tags = Array.isArray(form.value.tags) ? form.value.tags.join(',') : form.value.tags;
-
     try {
         if (isEditMode.value) {
-            // Update Existing Product
-            await axios.post(`/api/admin/products/${props.product.id}/update`, submitData);
-            Swal.fire({ icon: 'success', title: 'Updated!', text: 'Product Updated Successfully!' });
+            // Update Request
+            await axios.post(`/api/admin/products/${productId.value}/update`, form.value);
+            Swal.fire('Success', 'Product updated successfully!', 'success');
         } else {
-            // Create New Product
-            await axios.post('/api/admin/products', submitData);
-            Swal.fire({ icon: 'success', title: 'Created!', text: 'Product Created Successfully!' });
+            // Create Request
+            await axios.post('/api/admin/products', form.value);
+            Swal.fire('Success', 'Product created successfully!', 'success');
         }
 
-        // সফল হলে লিস্ট পেজে নিয়ে যাওয়া
-        router.visit('/admin/products');
+        // সফল হলে প্রোডাক্ট লিস্টে রিডাইরেক্ট
+        router.push('/admin/products');
 
     } catch (error) {
         console.error(error);
-        let msg = error.response?.data?.message || 'Something went wrong!';
-        Swal.fire({ icon: 'error', title: 'Error', text: msg });
+        const msg = error.response?.data?.message || 'Something went wrong!';
+        Swal.fire('Error', msg, 'error');
     } finally {
         isSubmitting.value = false;
     }
@@ -211,12 +226,14 @@ const submitProduct = async () => {
 </script>
 
 <template>
-    <Head :title="isEditMode ? 'Edit Product' : 'Create Product'" />
-
     <AdminLayout>
         <MediaManager v-if="showMediaManager" @close="showMediaManager = false" @select="handleMediaSelect" />
 
-        <div class="product-form-container">
+        <div v-if="isLoadingData" class="flex justify-center items-center h-64">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+        </div>
+
+        <div v-else class="product-form-container">
             <div class="header-section">
                 <div class="header-text">
                     <h4>
@@ -225,9 +242,9 @@ const submitProduct = async () => {
                     </h4>
                     <p>{{ isEditMode ? 'Update product information' : 'Fill all the information details correctly' }}</p>
                 </div>
-                <Link href="/admin/products" class="btn-manage shadow-sm text-decoration-none">
+                <router-link to="/admin/products" class="btn-manage shadow-sm text-decoration-none">
                     <i class="bi bi-list-ul me-2"></i>Product List
-                </Link>
+                </router-link>
             </div>
 
             <form @submit.prevent="submitProduct">
@@ -239,13 +256,13 @@ const submitProduct = async () => {
                     <div class="card-body">
                         <div class="form-group mb-4">
                             <label>Product Name <span class="required">*</span></label>
-                            <input v-model="form.name" type="text" class="form-control-enhanced" placeholder="e.g. Premium Cotton Panjabi">
+                            <input v-model="form.name" type="text" class="form-control-enhanced" placeholder="e.g. Premium Cotton Panjabi" required>
                         </div>
 
                         <div class="grid-3">
                             <div class="form-group">
                                 <label>Category <span class="required">*</span></label>
-                                <select v-model="form.category_id" class="form-control-enhanced">
+                                <select v-model="form.category_id" class="form-control-enhanced" required>
                                     <option value="">Select Category</option>
                                     <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
                                 </select>
@@ -301,7 +318,7 @@ const submitProduct = async () => {
                                 <span class="price-label text-blue">Regular Price <span class="required">*</span></span>
                                 <div class="input-with-icon">
                                     <span class="text-blue">৳</span>
-                                    <input v-model="form.base_price" type="number" placeholder="0.00" class="text-blue fw-bold">
+                                    <input v-model="form.base_price" type="number" placeholder="0.00" class="text-blue fw-bold" required>
                                 </div>
                             </div>
                             <div class="price-card highlight-green">
@@ -313,7 +330,7 @@ const submitProduct = async () => {
                             </div>
                             <div class="price-card bg-dark text-white">
                                 <span class="price-label text-white">Stock <span class="required">*</span></span>
-                                <input v-model="form.stock" type="number" placeholder="100" class="bg-dark text-white border-white">
+                                <input v-model="form.stock" type="number" placeholder="100" class="bg-dark text-white border-white" required>
                             </div>
                         </div>
                     </div>
@@ -622,7 +639,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .btn-submit-final:hover { transform: translateY(-3px); box-shadow: 0 15px 35px rgba(0,0,0,0.15); }
 
 @media (max-width: 768px) {
-    .grid-3, .grid-2, .grid-testimonial { grid-template-columns: 1fr; }
-    .header-section { flex-direction: column; align-items: flex-start; gap: 15px; }
+    .grid-3, .grid-2, .grid-testimonial { grid-template-columns: 1fr; }
+    .header-section { flex-direction: column; align-items: flex-start; gap: 15px; }
 }
 </style>
