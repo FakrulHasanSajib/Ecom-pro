@@ -29,25 +29,32 @@ use App\Http\Controllers\Api\AuthController;
 |--------------------------------------------------------------------------
 */
 
-// ১. ইউজার ইনফো
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
+// ১. পাবলিক রাউট (লগইন বা টোকেন ছাড়াই এক্সেস করা যাবে)
+// --------------------------------------------------------
+Route::post('/login', [AuthController::class, 'login']); // ✅ এটি এখন পাবলিক (Unauthenticated এরর ফিক্সড)
 
-// ২. পাবলিক রাউট (লগইন ছাড়াই এক্সেস করা যাবে)
 Route::prefix('public')->group(function () {
     Route::get('/products', [PublicProductController::class, 'index']); // শপ পেজ
     Route::get('/products/{slug}', [PublicProductController::class, 'show']); // সিঙ্গেল প্রোডাক্ট
     Route::get('/sliders', [SliderController::class, 'getActiveSliders']); // হোম স্লাইডার
 });
 
-// ৩. পেমেন্ট গেটওয়ে কলব্যাক
+// ২. পেমেন্ট গেটওয়ে কলব্যাক (পাবলিক)
 Route::post('/payment/success', [PaymentController::class, 'success']);
 Route::post('/payment/fail', [PaymentController::class, 'fail']);
 Route::post('/payment/cancel', [PaymentController::class, 'cancel']);
 
-// ৪. কাস্টমার রাউট (লগইন করা ইউজার)
+
+// ৩. কাস্টমার ও অথেন্টিকেটেড রাউট (টোকেন লাগবে)
+// --------------------------------------------------------
 Route::middleware(['auth:sanctum'])->group(function () {
+
+    // অথেনটিকেশন অ্যাকশন
+    Route::post('/logout', [AuthController::class, 'logout']); // লগআউট করতে টোকেন লাগে
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
+
     // অর্ডার ও চেকআউট
     Route::post('/checkout', [OrderController::class, 'store']);
     Route::get('/invoice/{uuid}', [InvoiceController::class, 'show']);
@@ -60,13 +67,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/wishlist', [WishlistController::class, 'index']);
     Route::post('/wishlist/toggle', [WishlistController::class, 'toggle']);
     Route::post('/reviews', [ReviewController::class, 'store']);
-
-    // এই লাইনটি যোগ করুন
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/logout', [AuthController::class, 'logout']);
 });
 
-// ৫. অ্যাডমিন রাউট (শুধুমাত্র অ্যাডমিনদের জন্য)
+
+// ৪. অ্যাডমিন রাউট (শুধুমাত্র অ্যাডমিন রোল এবং টোকেনসহ)
+// --------------------------------------------------------
 Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(function () {
 
     // --- Dashboard ---
@@ -75,8 +80,8 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     // --- Product Management ---
     Route::get('/products', [ProductController::class, 'index']); // লিস্ট
     Route::post('/products', [ProductController::class, 'store']); // তৈরি
-    Route::get('/products/{id}', [ProductController::class, 'edit']); // এডিট ডাটা (Vue ফর্মে দেখানোর জন্য)
-    Route::post('/products/{id}/update', [ProductController::class, 'update']); // আপডেট (POST for Image Upload)
+    Route::get('/products/{id}', [ProductController::class, 'edit']); // এডিট ডাটা
+    Route::post('/products/{id}/update', [ProductController::class, 'update']); // আপডেট
     Route::delete('/products/{id}', [ProductController::class, 'destroy']); // ডিলিট
 
     // Product Helpers
@@ -86,7 +91,7 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
 
     // --- Other Resources ---
     Route::apiResource('categories', CategoryController::class);
-    Route::apiResource('brands', BrandController::class); // যদি ব্র্যান্ড কন্ট্রোলার থাকে
+    Route::apiResource('brands', BrandController::class);
     Route::apiResource('sliders', SliderController::class);
 
     // --- Media & Settings ---

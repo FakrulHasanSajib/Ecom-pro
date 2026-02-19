@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router'; // Inertia বাদ দিয়ে Vue Router
+import { useRouter, useRoute } from 'vue-router'; // Inertia বাদ দিয়ে Vue Router
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
@@ -45,8 +45,8 @@ const form = ref({
     colors: [],
     sizes: [],
     free_shipping: false,
-    shipping_inside_dhaka: 80,
-    shipping_outside_dhaka: 150,
+    shipping_inside_dhaka: 80, // ডিফল্ট (API কল হওয়ার পর আপডেট হবে)
+    shipping_outside_dhaka: 150, // ডিফল্ট (API কল হওয়ার পর আপডেট হবে)
     thumbnail: null,
     images: [],
     video_link: '',
@@ -73,7 +73,7 @@ const safeTagsParse = (data) => {
 
 // --- Initialization (API Calling) ---
 onMounted(async () => {
-    // ১. ক্যাটাগরি এবং ব্র্যান্ড লিস্ট লোড করা
+    // ১. ক্যাটাগরি, ব্র্যান্ড এবং ডায়নামিক শিপিং ডাটা লোড করা
     try {
         const [catRes, brandRes] = await Promise.all([
             axios.get('/api/admin/list-categories'),
@@ -81,11 +81,23 @@ onMounted(async () => {
         ]);
         categories.value = catRes.data;
         brands.value = brandRes.data;
+
+        // ✅ Create Mode হলে Settings টেবিল থেকে ডায়নামিক শিপিং চার্জ আনা
+        if (!isEditMode.value) {
+            try {
+                const shipRes = await axios.get('/api/admin/shipping-defaults');
+                form.value.shipping_inside_dhaka = parseInt(shipRes.data.inside) || 80;
+                form.value.shipping_outside_dhaka = parseInt(shipRes.data.outside) || 150;
+            } catch (shipErr) {
+                console.warn("Shipping defaults could not be loaded, using fallbacks.");
+            }
+        }
+
     } catch (error) {
         console.error("Dependency loading failed:", error);
     }
 
-    // ২. যদি এডিট মোড হয়, তাহলে প্রোডাক্টের ডাটা আনা
+    // ২. যদি এডিট মোড হয়, তাহলে প্রোডাক্টের নিজস্ব ডাটা আনা
     if (isEditMode.value) {
         isLoadingData.value = true;
         try {
@@ -111,7 +123,9 @@ onMounted(async () => {
                 // নাম্বার ফরম্যাট নিশ্চিত করা
                 stock: p.total_stock || p.stock,
                 purchase_price: p.purchase_price,
-                base_price: p.base_price
+                base_price: p.base_price,
+                shipping_inside_dhaka: p.shipping_inside_dhaka,
+                shipping_outside_dhaka: p.shipping_outside_dhaka
             };
         } catch (error) {
             Swal.fire('Error', 'Failed to load product data', 'error');
@@ -458,7 +472,6 @@ const submitProduct = async () => {
                             <input v-model="form.slug" type="text" class="form-control-enhanced bg-gray-50" placeholder="auto-generated-slug">
                             <small class="text-muted">Auto-generated from Product Name</small>
                         </div>
-
                         <div class="form-group mb-3">
                             <label>Meta Title</label>
                             <input v-model="form.meta_title" type="text" class="form-control-enhanced">
@@ -639,7 +652,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .btn-submit-final:hover { transform: translateY(-3px); box-shadow: 0 15px 35px rgba(0,0,0,0.15); }
 
 @media (max-width: 768px) {
-    .grid-3, .grid-2, .grid-testimonial { grid-template-columns: 1fr; }
-    .header-section { flex-direction: column; align-items: flex-start; gap: 15px; }
+    .grid-3, .grid-2, .grid-testimonial { grid-template-columns: 1fr; }
+    .header-section { flex-direction: column; align-items: flex-start; gap: 15px; }
 }
 </style>

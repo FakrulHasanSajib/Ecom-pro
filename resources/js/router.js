@@ -8,13 +8,17 @@ import ProductCreate from './Pages/Admin/Products/Create.vue';
 
 // ২. আসল লগইন পেজ ইমপোর্ট করুন (আগের টেম্পোরারি লাইন মুছে ফেলুন)
 import Login from './Pages/Auth/Login.vue';
+import Home from '@/Pages/Frontend/Home.vue';
 
 const routes = [
     // --- Public Routes ---
+
     {
         path: '/',
-        redirect: '/login'
+        name: 'Home',
+        component: Home
     },
+
     {
         path: '/login',
         name: 'login',
