@@ -1,207 +1,78 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import axios from 'axios';
-import FrontendLayout from '@/Layouts/FrontendLayout.vue';
+import { SfButton, SfIconShoppingCart, SfIconFavorite, SfRating } from '@storefront-ui/vue';
 
-const products = ref([]);
-const categories = ref([]);
-const isLoading = ref(true);
-
-// API থেকে ডাটা ফেচ করা
-onMounted(async () => {
-    try {
-        // প্রোডাক্ট এবং ক্যাটাগরি একসাথে কল করা
-        const [prodRes, catRes] = await Promise.all([
-            axios.get('/api/public/products'),
-            axios.get('/api/public/categories')
-        ]);
-
-        products.value = prodRes.data.data || prodRes.data;
-        categories.value = catRes.data;
-    } catch (error) {
-        console.error("Error loading home data:", error);
-    } finally {
-        isLoading.value = false;
-    }
-});
-
-// সোশ্যাল লিঙ্ক ও কন্টাক্ট ইনফো (এগুলো চাইলে পরে সেটিংস টেবিল থেকেও আনতে পারেন)
-const siteSettings = ref({
-    fb: "https://facebook.com/yourstore",
-    insta: "https://instagram.com/yourstore",
-    twitter: "https://twitter.com/yourstore",
-    phone: "+880 1234 567 890",
-    email: "support@ecopro.com"
+// ডেমো ডাটা
+const products = Array(4).fill({
+  id: 1,
+  name: 'Premium Smart Watch Z10',
+  price: '৳ 2,500',
+  oldPrice: '৳ 3,200',
+  rating: 4.5,
+  reviews: 120,
+  img: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?q=80&w=400',
 });
 </script>
 
 <template>
-    <FrontendLayout>
-        <div class="home-wrapper">
-
-            <section class="hero-section">
-                <div class="hero-content">
-                    <span class="badge-new">New Collection 2026</span>
-                    <h1 class="hero-title">Elevate Your Lifestyle with <span class="text-gradient">Premium</span> Choices</h1>
-                    <p class="hero-subtitle">Experience seamless shopping. Discover the best quality products at unbeatable prices, delivered right to your door.</p>
-                    <div class="hero-buttons">
-                        <button class="btn-primary-gradient">Shop Now <i class="bi bi-arrow-right"></i></button>
-                        <button class="btn-outline-glass">Contact Us</button>
-                    </div>
-                </div>
-                <div class="hero-visual">
-                    <div class="glass-card">
-                        <i class="bi bi-patch-check-fill text-5xl text-blue-400"></i>
-                        <div class="glass-text">
-                            <h4>Genuine Products</h4>
-                            <p>100% Quality Assurance</p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="trust-section">
-                <div class="trust-container">
-                    <div class="trust-item">
-                        <div class="icon-box"><i class="bi bi-truck"></i></div>
-                        <div><h5>Free Shipping</h5><p>On orders over ৳5000</p></div>
-                    </div>
-                    <div class="trust-item">
-                        <div class="icon-box"><i class="bi bi-shield-lock"></i></div>
-                        <div><h5>Secure Payment</h5><p>SSL Protected Checkout</p></div>
-                    </div>
-                    <div class="trust-item">
-                        <div class="icon-box"><i class="bi bi-arrow-repeat"></i></div>
-                        <div><h5>7 Days Return</h5><p>No questions asked</p></div>
-                    </div>
-                    <div class="trust-item">
-                        <div class="icon-box"><i class="bi bi-telephone-outbound"></i></div>
-                        <div><h5>24/7 Support</h5><p>{{ siteSettings.phone }}</p></div>
-                    </div>
-                </div>
-            </section>
-
-            <section class="category-section" v-if="categories.length > 0">
-                <div class="section-header">
-                    <h2>Explore Categories</h2>
-                    <div class="header-line"></div>
-                </div>
-                <div class="category-grid">
-                    <router-link
-                        v-for="cat in categories"
-                        :key="cat.id"
-                        :to="`/category/${cat.slug}`"
-                        class="category-card"
-                    >
-                        <div class="cat-icon">
-                            <i :class="cat.icon ? `bi ${cat.icon}` : 'bi-grid-fill'"></i>
-                        </div>
-                        <span class="cat-name">{{ cat.name }}</span>
-                    </router-link>
-                </div>
-            </section>
-
-            <section class="product-section">
-                <div class="section-header flex-between">
-                    <div>
-                        <h2>Trending Products</h2>
-                        <p class="section-subtitle">Top picks from our collection</p>
-                    </div>
-                    <button class="btn-view-all">See All Products <i class="bi bi-chevron-right"></i></button>
-                </div>
-
-                <div v-if="isLoading" class="loader-container">
-                    <div class="modern-spinner"></div>
-                    <p>Loading Products...</p>
-                </div>
-
-                <div v-else class="product-grid">
-                    <div v-for="product in products" :key="product.id" class="product-card">
-                        <div class="product-image-wrapper">
-                            <img :src="product.thumbnail ? `/${product.thumbnail}` : 'https://via.placeholder.com/400'" :alt="product.name" class="product-img">
-                            <div v-if="product.offer_price" class="discount-badge">Sale</div>
-
-                            <div class="hover-actions">
-                                <button class="action-btn"><i class="bi bi-heart"></i></button>
-                                <button class="action-btn"><i class="bi bi-eye"></i></button>
-                            </div>
-                        </div>
-
-                        <div class="product-info">
-                            <span class="cat-label" v-if="product.category">{{ product.category.name }}</span>
-                            <h3 class="product-title">{{ product.name }}</h3>
-
-                            <div class="price-box">
-                                <span v-if="product.offer_price" class="price-new">৳{{ product.offer_price }}</span>
-                                <span :class="product.offer_price ? 'price-old' : 'price-new'">৳{{ product.base_price }}</span>
-                            </div>
-
-                            <button class="btn-add-cart">
-                                <i class="bi bi-cart-plus me-2"></i> Add to Cart
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div v-if="!isLoading && products.length === 0" class="empty-state">
-                    <p>No products found in the store.</p>
-                </div>
-            </section>
-
-            <section class="promo-banner">
-                <div class="promo-content">
-                    <h2>Don't Miss Out!</h2>
-                    <p>Subscribe to get exclusive updates and offer alerts.</p>
-                    <div class="subscribe-form">
-                        <input type="email" placeholder="Enter your email">
-                        <button>Join Now</button>
-                    </div>
-                    <div class="social-icons-footer">
-                        <a :href="siteSettings.fb" target="_blank"><i class="bi bi-facebook"></i></a>
-                        <a :href="siteSettings.insta" target="_blank"><i class="bi bi-instagram"></i></a>
-                        <a :href="siteSettings.twitter" target="_blank"><i class="bi bi-twitter-x"></i></a>
-                    </div>
-                </div>
-            </section>
-
+  <div class="bg-white min-h-screen">
+    <section class="relative bg-neutral-100 py-16 px-4 mb-10">
+      <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between">
+        <div class="md:w-1/2 mb-8 md:mb-0">
+          <h1 class="typography-headline-1 font-bold text-neutral-900 mb-4">
+            New Arrival Collection
+          </h1>
+          <p class="typography-text-lg text-neutral-600 mb-8">
+            Get the best deals on premium gadgets and fashion items. Limited time offer!
+          </p>
+          <SfButton size="lg" class="bg-primary-700 hover:bg-primary-800">
+            Shop Now
+          </SfButton>
         </div>
-    </FrontendLayout>
+        <div class="md:w-1/2 flex justify-center">
+          <img src="https://storage.googleapis.com/sfui_docs_artifacts/containers/watch.png" alt="Hero" class="max-h-[400px]" />
+        </div>
+      </div>
+    </section>
+
+    <div class="max-w-7xl mx-auto px-4 py-8">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="typography-headline-3 font-bold">Featured Products</h2>
+        <SfButton variant="tertiary" class="text-primary-700">See all</SfButton>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div v-for="product in products" :key="product.id" class="border border-neutral-200 rounded-lg hover:shadow-xl transition-shadow group">
+          <div class="relative overflow-hidden rounded-t-lg">
+            <img :src="product.img" :alt="product.name" class="object-cover w-full h-64 transition-transform duration-500 group-hover:scale-110" />
+            <div class="absolute top-3 right-3">
+              <SfButton variant="tertiary" square size="sm" class="bg-white/80 hover:bg-white rounded-full shadow-md">
+                <SfIconFavorite size="sm" />
+              </SfButton>
+            </div>
+          </div>
+
+          <div class="p-4">
+            <div class="flex items-center gap-1 mb-2">
+              <SfRating :value="product.rating" :max="5" size="xs" />
+              <span class="text-xs text-neutral-500">({{ product.reviews }})</span>
+            </div>
+            <h3 class="typography-text-base font-medium text-neutral-900 mb-2 truncate">
+              {{ product.name }}
+            </h3>
+            <div class="flex items-baseline gap-2 mb-4">
+              <span class="typography-text-lg font-bold text-neutral-900">{{ product.price }}</span>
+              <span class="typography-text-sm text-neutral-500 line-through">{{ product.oldPrice }}</span>
+            </div>
+
+            <SfButton size="sm" class="w-full gap-2">
+              <template #prefix>
+                <SfIconShoppingCart size="sm" />
+              </template>
+              Add to Cart
+            </SfButton>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
-
-<style scoped>
-/* সব CSS আগের মতোই থাকবে, শুধু সোশ্যাল আইকনের জন্য নিচে কয়েকটা লাইন যোগ করলাম */
-.social-icons-footer {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    margin-top: 30px;
-}
-.social-icons-footer a {
-    color: white;
-    font-size: 1.5rem;
-    transition: 0.3s;
-    background: rgba(255,255,255,0.1);
-    width: 45px;
-    height: 45px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 50%;
-}
-.social-icons-footer a:hover {
-    background: white;
-    color: #ec4899;
-    transform: scale(1.1);
-}
-
-/* আপনার আগের স্টাইলগুলো এখানে কপি-পেস্ট করুন... */
-/* (আমি আগের স্টাইল কোড এখানে সংক্ষেপ করলাম, আপনি আপনার ফাইলের পুরো স্টাইল অংশটুকু রাখবেন) */
-.home-wrapper { font-family: 'Inter', sans-serif; background-color: #f8fafc; overflow-x: hidden; color: #0f172a; }
-.hero-section { position: relative; min-height: 80vh; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); display: flex; align-items: center; justify-content: space-between; padding: 0 10%; overflow: hidden;}
-.hero-title { font-size: 4rem; font-weight: 900; line-height: 1.1; margin-bottom: 20px; color: white; }
-.text-gradient { background: linear-gradient(to right, #a855f7, #ec4899, #f43f5e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-.category-card { text-decoration: none; transition: 0.3s; }
-.product-card { background: white; border-radius: 24px; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.03); border: 1px solid #f1f5f9; }
-.btn-primary-gradient { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); color: white; border: none; padding: 15px 35px; border-radius: 50px; font-weight: 700; cursor: pointer; }
-/* ... বাকি সব CSS আগের মতোই ... */
-</style>

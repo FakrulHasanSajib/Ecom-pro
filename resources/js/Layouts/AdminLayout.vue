@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import axios from 'axios';
 import Swal from 'sweetalert2';
@@ -8,19 +8,16 @@ const isSidebarOpen = ref(true);
 const isProductMenuOpen = ref(false);
 
 const router = useRouter();
-const route = useRoute(); // বর্তমান পাথ চেক করার জন্য
+const route = useRoute();
 
-// ইউজার ডাটা (লগইন করার সময় যদি লোকাল স্টোরেজে সেভ করে থাকেন)
 const userName = ref(localStorage.getItem('user_name') || 'Admin');
 
-// পেজ লোড হলে যদি আমরা প্রোডাক্ট রিলেটেড কোনো পেজে থাকি, মেনু ওপেন থাকবে
 onMounted(() => {
     if (route.path.startsWith('/admin/products')) {
         isProductMenuOpen.value = true;
     }
 });
 
-// প্রোডাক্ট মেনু টগল করার ফাংশন
 const toggleProductMenu = () => {
     if (!isSidebarOpen.value) {
         isSidebarOpen.value = true;
@@ -30,7 +27,6 @@ const toggleProductMenu = () => {
     }
 };
 
-// লগআউট ফাংশন
 const logout = async () => {
     try {
         const result = await Swal.fire({
@@ -52,7 +48,6 @@ const logout = async () => {
         }
     } catch (error) {
         console.error("Logout failed:", error);
-        // এরর হলেও সেফটির জন্য টোকেন মুছে রিডাইরেক্ট করা ভালো
         localStorage.clear();
         router.push('/login');
     }
@@ -62,7 +57,6 @@ const logout = async () => {
 <template>
     <div class="min-h-screen bg-gray-100 flex">
         <aside :class="isSidebarOpen ? 'w-64' : 'w-20'" class="fixed left-0 top-0 h-full bg-slate-900 text-white transition-all duration-300 z-50 flex flex-col">
-
             <div class="p-4 flex items-center justify-between border-b border-slate-700 h-16">
                 <span v-if="isSidebarOpen" class="text-xl font-bold truncate">Admin Panel</span>
                 <button @click="isSidebarOpen = !isSidebarOpen" class="p-1 hover:bg-slate-800 rounded focus:outline-none ml-auto">
@@ -73,7 +67,6 @@ const logout = async () => {
             </div>
 
             <nav class="mt-4 px-2 space-y-2 flex-1 overflow-y-auto">
-
                 <router-link to="/admin/dashboard"
                     class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition"
                     :class="{'bg-indigo-600 shadow-lg shadow-indigo-500/30': route.path === '/admin/dashboard'}">
@@ -153,7 +146,6 @@ const logout = async () => {
 </template>
 
 <style scoped>
-/* অতিরিক্ত কোনো অ্যানিমেশন লাগলে এখানে যোগ করতে পারেন */
 .router-link-active:not(.w-full) {
     background-color: #4f46e5;
 }
