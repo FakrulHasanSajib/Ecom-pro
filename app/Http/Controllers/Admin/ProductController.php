@@ -48,6 +48,30 @@ class ProductController extends Controller
     }
 
     /**
+     * [নতুন যুক্ত করা হয়েছে]
+     * সিঙ্গেল প্রোডাক্ট ডাটা (Public/Frontend View)
+     * URL: GET /api/public/products/{id}
+     */
+    public function show($id)
+    {
+        try {
+            // ID অথবা Slug যেকোনো একটি দিয়ে প্রোডাক্ট খুঁজবে
+            $product = Product::with(['category', 'brand'])
+                ->where('id', $id)
+                ->orWhere('slug', $id)
+                ->firstOrFail();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $product
+            ], 200);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Product not found'], 404);
+        }
+    }
+
+    /**
      * ৩. ড্রপডাউন ডাটা API (Categories)
      * URL: GET /api/admin/list-categories
      */
@@ -128,7 +152,7 @@ class ProductController extends Controller
                 'wholesale_price' => $request->wholesale_price ?? 0,
                 'reseller_price' => $request->reseller_price ?? 0,
                 'base_price' => $request->base_price,
-                'offer_price' => $request->offer_price, // sale_price or offer_price check model
+                'offer_price' => $request->offer_price,
                 'total_stock' => $request->stock,
 
                 // Details
@@ -141,12 +165,12 @@ class ProductController extends Controller
                 'shipping_outside_dhaka' => $request->shipping_outside_dhaka,
                 'status' => 'published',
 
-                // JSON Fields (Passed directly, Model $casts will handle array conversion)
+                // JSON Fields
                 'colors' => $request->colors,
                 'sizes' => $request->sizes,
                 'tags' => $request->tags,
                 'testimonials' => $request->testimonials,
-                'images' => $request->images, // Gallery Images Array
+                'images' => $request->images,
 
                 // SEO
                 'meta_title' => $request->meta_title,
@@ -217,7 +241,6 @@ class ProductController extends Controller
                 'meta_description' => $request->meta_description,
             ];
 
-            // থাম্বনেইল আপডেট লজিক
             if ($request->has('thumbnail') && $request->thumbnail) {
                  $updateData['thumbnail'] = $this->handleThumbnailPath($request->thumbnail);
             }

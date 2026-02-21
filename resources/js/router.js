@@ -8,21 +8,25 @@ import ProductCreate from './Pages/Admin/Products/Create.vue';
 
 // ২. আসল লগইন পেজ ইমপোর্ট করুন (আগের টেম্পোরারি লাইন মুছে ফেলুন)
 import Login from './Pages/Auth/Login.vue';
-import Home from '@/Pages/Frontend/Home.vue';
+import Home from './Pages/Frontend/Home.vue';
+import ProductDetails from './Pages/Frontend/ProductDetails.vue'; // পাথ ঠিক করা হয়েছে
 
 const routes = [
     // --- Public Routes ---
-
     {
         path: '/',
         name: 'Home',
         component: Home
     },
-
+    {
+        path: '/product/:id',
+        name: 'ProductDetails',
+        component: ProductDetails
+    },
     {
         path: '/login',
         name: 'login',
-        component: Login // এখন এটি আপনার তৈরি করা ফাইল লোড করবে
+        component: Login
     },
 
     // --- Admin Routes ---
@@ -57,7 +61,7 @@ const routes = [
         props: true
     },
 
-    // --- 404 Not Found ---
+    // --- 404 Not Found (এটি সবসময় একদম শেষে থাকতে হয়) ---
     {
         path: '/:pathMatch(.*)*',
         name: 'NotFound',

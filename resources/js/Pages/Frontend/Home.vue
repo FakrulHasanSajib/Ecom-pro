@@ -128,23 +128,26 @@ onMounted(() => {
                         <div v-for="product in products" :key="product.id"
                              class="group bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-2xl hover:border-transparent transition-all duration-300 relative flex flex-col">
 
-                            <div class="relative h-64 overflow-hidden bg-white p-4 flex items-center justify-center">
+                            <router-link :to="'/product/' + product.id" class="relative h-64 overflow-hidden bg-white p-4 flex items-center justify-center block cursor-pointer">
                                 <img :src="product.thumbnail ? '/storage/'+product.thumbnail : 'https://placehold.co/400x400?text=No+Image'"
                                      class="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform duration-500" />
+                            </router-link>
 
-                                <div class="absolute top-4 right-4 translate-x-10 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300">
-                                    <button class="p-2.5 bg-white shadow-md rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
-                                        <SfIconFavorite size="sm" />
-                                    </button>
-                                </div>
+                            <div class="absolute top-4 right-4 translate-x-10 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all duration-300 z-10">
+                                <button class="p-2.5 bg-white shadow-md rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors">
+                                    <SfIconFavorite size="sm" />
+                                </button>
                             </div>
 
                             <div class="p-5 border-t border-gray-100 flex-grow flex flex-col justify-between">
                                 <div>
                                     <p class="text-xs text-indigo-500 font-bold uppercase mb-2 tracking-wider">{{ product.category?.name || 'General' }}</p>
-                                    <h3 class="font-bold text-gray-800 text-lg mb-2 line-clamp-2 hover:text-indigo-600 transition-colors cursor-pointer" :title="product.name">
-                                        {{ product.name }}
-                                    </h3>
+
+                                    <router-link :to="'/product/' + product.id">
+                                        <h3 class="font-bold text-gray-800 text-lg mb-2 line-clamp-2 hover:text-indigo-600 transition-colors cursor-pointer" :title="product.name">
+                                            {{ product.name }}
+                                        </h3>
+                                    </router-link>
                                 </div>
 
                                 <div class="mt-4">
