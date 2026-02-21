@@ -13,7 +13,10 @@ use App\Http\Controllers\Admin\MediaController;
 use App\Http\Controllers\Admin\BrandController;
 
 // --- Public/Customer Controllers ---
-use App\Http\Controllers\Api\ProductController as PublicProductController;
+/* নিচে PublicProductController হিসেবে সরাসরি Admin এর ProductController ব্যবহার করা হয়েছে।
+  কারণ আপনার Api ফোল্ডারের কন্ট্রোলারটি 'media' টেবিল খুঁজছে যা আপনার ডাটাবেসে নেই।
+*/
+use App\Http\Controllers\Admin\ProductController as PublicProductController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\CouponController;
@@ -29,17 +32,21 @@ use App\Http\Controllers\Api\AuthController;
 |--------------------------------------------------------------------------
 */
 
-// ১. পাবলিক রাউট (লগইন বা টোকেন ছাড়াই এক্সেস করা যাবে)
+// ১. পাবলিক রাউট (লগইন বা টোকেন ছাড়াই এক্সেস করা যাবে)
 // --------------------------------------------------------
-Route::post('/login', [AuthController::class, 'login']); // ✅ এটি এখন পাবলিক (Unauthenticated এরর ফিক্সড)
+Route::post('/login', [AuthController::class, 'login']);
 
 Route::prefix('public')->group(function () {
-    Route::get('/products', [PublicProductController::class, 'index']); // শপ পেজ
-    Route::get('/products/{slug}', [PublicProductController::class, 'show']); // সিঙ্গেল প্রোডাক্ট
-    Route::get('/sliders', [SliderController::class, 'getActiveSliders']); // হোম স্লাইডার
+    // এই রুটগুলো এখন সঠিকভাবে ডাটা রিটার্ন করবে
+    Route::get('/products', [PublicProductController::class, 'index']);
+    Route::get('/products/{slug}', [PublicProductController::class, 'show']);
+
+    // হোমপেজে ক্যাটাগরি এবং স্লাইডার দেখানোর রুট
+    Route::get('/categories', [CategoryController::class, 'index']);
+    Route::get('/sliders', [SliderController::class, 'index']);
 });
 
-// ২. পেমেন্ট গেটওয়ে কলব্যাক (পাবলিক)
+// ২. পেমেন্ট গেটওয়ে কলব্যাক
 Route::post('/payment/success', [PaymentController::class, 'success']);
 Route::post('/payment/fail', [PaymentController::class, 'fail']);
 Route::post('/payment/cancel', [PaymentController::class, 'cancel']);
@@ -48,21 +55,14 @@ Route::post('/payment/cancel', [PaymentController::class, 'cancel']);
 // ৩. কাস্টমার ও অথেন্টিকেটেড রাউট (টোকেন লাগবে)
 // --------------------------------------------------------
 Route::middleware(['auth:sanctum'])->group(function () {
-
-    // অথেনটিকেশন অ্যাকশন
-    Route::post('/logout', [AuthController::class, 'logout']); // লগআউট করতে টোকেন লাগে
+    Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
 
-    // অর্ডার ও চেকআউট
     Route::post('/checkout', [OrderController::class, 'store']);
     Route::get('/invoice/{uuid}', [InvoiceController::class, 'show']);
-
-    // অ্যাড্রেস বুক
     Route::apiResource('addresses', UserAddressController::class);
-
-    // অ্যাক্টিভিটিস
     Route::post('/apply-coupon', [CouponController::class, 'apply']);
     Route::get('/wishlist', [WishlistController::class, 'index']);
     Route::post('/wishlist/toggle', [WishlistController::class, 'toggle']);
@@ -78,16 +78,16 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::get('/dashboard-stats', [DashboardController::class, 'index']);
 
     // --- Product Management ---
-    Route::get('/products', [ProductController::class, 'index']); // লিস্ট
-    Route::post('/products', [ProductController::class, 'store']); // তৈরি
-    Route::get('/products/{id}', [ProductController::class, 'edit']); // এডিট ডাটা
-    Route::post('/products/{id}/update', [ProductController::class, 'update']); // আপডেট
-    Route::delete('/products/{id}', [ProductController::class, 'destroy']); // ডিলিট
+    Route::get('/products', [ProductController::class, 'index']);
+    Route::post('/products', [ProductController::class, 'store']);
+    Route::get('/products/{id}', [ProductController::class, 'edit']);
+    Route::post('/products/{id}/update', [ProductController::class, 'update']);
+    Route::delete('/products/{id}', [ProductController::class, 'destroy']);
 
     // Product Helpers
     Route::post('/products/generate-seo', [ProductController::class, 'generateSeo']);
-    Route::get('/list-categories', [ProductController::class, 'getCategories']); // ড্রপডাউন
-    Route::get('/list-brands', [ProductController::class, 'getBrands']); // ড্রপডাউন
+    Route::get('/list-categories', [ProductController::class, 'getCategories']);
+    Route::get('/list-brands', [ProductController::class, 'getBrands']);
 
     // --- Other Resources ---
     Route::apiResource('categories', CategoryController::class);
