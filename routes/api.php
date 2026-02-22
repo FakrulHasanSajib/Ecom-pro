@@ -13,9 +13,6 @@ use App\Http\Controllers\Admin\MediaController;
 use App\Http\Controllers\Admin\BrandController;
 
 // --- Public/Customer Controllers ---
-/* নিচে PublicProductController হিসেবে সরাসরি Admin এর ProductController ব্যবহার করা হয়েছে।
-  কারণ আপনার Api ফোল্ডারের কন্ট্রোলারটি 'media' টেবিল খুঁজছে যা আপনার ডাটাবেসে নেই।
-*/
 use App\Http\Controllers\Admin\ProductController as PublicProductController;
 use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\PaymentController;
@@ -32,7 +29,7 @@ use App\Http\Controllers\Api\AuthController;
 |--------------------------------------------------------------------------
 */
 
-// ১. পাবলিক রাউট (লগইন বা টোকেন ছাড়াই এক্সেস করা যাবে)
+// ১. পাবলিক রাউট (লগইন বা টোকেন ছাড়াই এক্সেস করা যাবে)
 // --------------------------------------------------------
 Route::post('/login', [AuthController::class, 'login']);
 
@@ -44,9 +41,12 @@ Route::prefix('public')->group(function () {
     // হোমপেজে ক্যাটাগরি এবং স্লাইডার দেখানোর রুট
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/sliders', [SliderController::class, 'index']);
+
+    // 🔥 চেকআউট রাউটটি এখানে পাবলিক করা হলো (যাতে লগিন ছাড়াও অর্ডার করা যায়)
+    Route::post('/checkout', [OrderController::class, 'store']);
 });
 
-// ২. পেমেন্ট গেটওয়ে কলব্যাক
+// ২. পেমেন্ট গেটওয়ে কলব্যাক
 Route::post('/payment/success', [PaymentController::class, 'success']);
 Route::post('/payment/fail', [PaymentController::class, 'fail']);
 Route::post('/payment/cancel', [PaymentController::class, 'cancel']);
@@ -60,7 +60,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return $request->user();
     });
 
-    Route::post('/checkout', [OrderController::class, 'store']);
     Route::get('/invoice/{uuid}', [InvoiceController::class, 'show']);
     Route::apiResource('addresses', UserAddressController::class);
     Route::post('/apply-coupon', [CouponController::class, 'apply']);

@@ -10,6 +10,8 @@ import ProductCreate from './Pages/Admin/Products/Create.vue';
 import Login from './Pages/Auth/Login.vue';
 import Home from './Pages/Frontend/Home.vue';
 import ProductDetails from './Pages/Frontend/ProductDetails.vue'; // পাথ ঠিক করা হয়েছে
+import Checkout from './Pages/Frontend/Checkout.vue'; // চেকআউট পেজ ইমপোর্ট করা হয়েছে
+import OrderSuccess from './Pages/Frontend/OrderSuccess.vue';
 
 const routes = [
     // --- Public Routes ---
@@ -66,7 +68,17 @@ const routes = [
         path: '/:pathMatch(.*)*',
         name: 'NotFound',
         component: { template: '<div class="p-10 text-center text-red-500"><h1>404 - Page Not Found</h1></div>' }
-    }
+    },
+    {
+        path: '/checkout',
+        name: 'Checkout',
+        component: Checkout
+    },
+    {
+        path: '/order-success',
+        name: 'OrderSuccess',
+        component: OrderSuccess
+    },
 ];
 
 const router = createRouter({

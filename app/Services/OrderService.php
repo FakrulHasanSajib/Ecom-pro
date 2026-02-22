@@ -17,7 +17,11 @@ class OrderService
             $order = Order::create([
                 'uuid' => Str::uuid(),
                 'order_number' => 'ORD-' . strtoupper(Str::random(8)),
-                'user_id' => $user->id,
+                'user_id' => $user ? $user->id : null, // লগিন না থাকলে null
+                'name' => $data['name'] ?? null,       // কাস্টমারের নাম
+                'phone' => $data['phone'] ?? null,     // ফোন নাম্বার
+                'address' => $data['address'] ?? null, // ঠিকানা
+                'area' => $data['area'] ?? null,       // এরিয়া
                 'sub_total' => 0, // পরে ক্যালকুলেট হবে
                 'grand_total' => 0,
                 'payment_method' => $data['payment_method'],

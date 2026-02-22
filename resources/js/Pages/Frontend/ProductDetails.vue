@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import {
@@ -7,15 +7,41 @@ import {
     SfRating, SfIconFavorite
 } from '@storefront-ui/vue';
 
+import { useCartStore } from '../../stores/cart';
+import CartSidebar from '../../Components/CartSidebar.vue'; // 1. Sidebar ইমপোর্ট করা হলো
+
 const route = useRoute();
 const router = useRouter();
+const cartStore = useCartStore();
 
 const product = ref(null);
 const relatedProducts = ref([]);
 const loading = ref(true);
 const activeImage = ref('');
+const quantity = ref(1);
 
-// Image Zoom Logic
+// 2. Sidebar open/close কন্ট্রোল করার স্টেট
+const isCartSidebarOpen = ref(false);
+
+// Toast Notification State
+const showToast = ref(false);
+const toastMessage = ref('');
+
+const triggerToast = (msg) => {
+    toastMessage.value = msg;
+    showToast.value = true;
+    setTimeout(() => {
+        showToast.value = false;
+    }, 3000);
+};
+
+const backendUrl = 'http://127.0.0.1:8000';
+
+const getImageUrl = (path) => {
+    if (!path) return 'https://placehold.co/600x600?text=No+Image';
+    return path.startsWith('http') ? path : `${backendUrl}/storage/${path}`;
+};
+
 const zoomStyle = ref({ transformOrigin: 'center center' });
 const handleZoom = (e) => {
     const { left, top, width, height } = e.target.getBoundingClientRect();
@@ -24,24 +50,19 @@ const handleZoom = (e) => {
     zoomStyle.value.transformOrigin = `${x}% ${y}%`;
 };
 
-// Review Form State
 const reviewForm = ref({ rating: 5, comment: '', name: '' });
 
-// Fetch Product Details
 const fetchProduct = async () => {
     try {
         loading.value = true;
+        window.scrollTo(0, 0);
+        quantity.value = 1;
 
-        // 1. Fetch Current Product
         const res = await axios.get(`/api/public/products/${route.params.id}`);
         product.value = res.data.data;
 
-        // Set Main Image
-        activeImage.value = product.value.thumbnail
-            ? '/storage/' + product.value.thumbnail
-            : 'https://placehold.co/600x600?text=No+Image';
+        activeImage.value = getImageUrl(product.value.thumbnail);
 
-        // 2. Fetch Related Products
         const relatedRes = await axios.get('/api/public/products');
         relatedProducts.value = (relatedRes.data.data || []).filter(p => p.id !== product.value.id).slice(0, 4);
 
@@ -52,7 +73,27 @@ const fetchProduct = async () => {
     }
 };
 
-// YouTube URL to Embed URL Converter
+watch(
+    () => route.params.id,
+    (newId) => {
+        if (newId) fetchProduct();
+    }
+);
+
+const handleAddToCart = () => {
+    if (product.value) {
+        cartStore.addToCart(product.value, quantity.value);
+        triggerToast('প্রোডাক্ট সফলভাবে কার্টে যুক্ত হয়েছে! 🛒');
+        isCartSidebarOpen.value = true; // 3. অ্যাড করার পর অটোমেটিক সাইডবার ওপেন হবে
+    }
+};
+
+const handleRelatedAddToCart = (relProduct) => {
+    cartStore.addToCart(relProduct, 1);
+    triggerToast('প্রোডাক্ট কার্টে যুক্ত হয়েছে! 🛒');
+    isCartSidebarOpen.value = true;
+};
+
 const embedVideoUrl = computed(() => {
     if (!product.value?.video_link) return null;
     let url = product.value.video_link;
@@ -62,7 +103,6 @@ const embedVideoUrl = computed(() => {
     return url;
 });
 
-// JSON Parsers
 const getGalleryImages = computed(() => {
     if (!product.value?.images) return [];
     try {
@@ -73,15 +113,24 @@ const getGalleryImages = computed(() => {
 const getTestimonials = computed(() => {
     if (!product.value?.testimonials) return [];
     try {
-        return typeof product.value.testimonials === 'string' ? JSON.parse(product.value.testimonials) : product.value.testimonials;
+        let items = typeof product.value.testimonials === 'string' ? JSON.parse(product.value.testimonials) : product.value.testimonials;
+
+        if (Array.isArray(items)) {
+            return items.map(item => {
+                if (typeof item === 'string' && item.trim().startsWith('{')) {
+                    try { return JSON.parse(item); } catch (e) { return item; }
+                }
+                return item;
+            });
+        }
+        return items;
     } catch(e) { return []; }
 });
 
 const goBack = () => router.push('/');
 
-// Fake Submit Review
 const submitReview = () => {
-    alert(`Thanks ${reviewForm.value.name}! Your ${reviewForm.value.rating}-star review has been submitted.`);
+    triggerToast(`Thanks ${reviewForm.value.name}! Your review is submitted.`);
     reviewForm.value = { rating: 5, comment: '', name: '' };
 };
 
@@ -91,7 +140,23 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="bg-gray-50 min-h-screen pb-20 font-sans flex flex-col">
+    <div class="bg-gray-50 min-h-screen pb-20 font-sans flex flex-col relative overflow-hidden">
+
+        <transition
+            enter-active-class="transition ease-out duration-300 transform"
+            enter-from-class="translate-x-full opacity-0"
+            enter-to-class="translate-x-0 opacity-100"
+            leave-active-class="transition ease-in duration-300 transform"
+            leave-from-class="translate-x-0 opacity-100"
+            leave-to-class="translate-x-full opacity-0"
+        >
+            <div v-if="showToast" class="fixed top-24 right-6 z-[100] bg-slate-900 border-l-4 border-indigo-500 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4">
+                <div class="bg-indigo-500 rounded-full p-1">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                </div>
+                <span class="font-medium text-[15px] tracking-wide">{{ toastMessage }}</span>
+            </div>
+        </transition>
 
         <header class="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
             <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -100,9 +165,11 @@ onMounted(() => {
                     <span class="font-bold text-2xl text-indigo-700 tracking-tight">E-Shop</span>
                 </div>
                 <div class="flex items-center gap-4">
-                    <SfButton variant="tertiary" square class="text-gray-600 hover:text-indigo-600 relative">
+                    <SfButton @click="isCartSidebarOpen = true" variant="tertiary" square class="text-gray-600 hover:text-indigo-600 relative">
                         <SfIconShoppingCart />
-                        <span class="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">0</span>
+                        <span v-if="cartStore.totalItems > 0" class="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                            {{ cartStore.totalItems }}
+                        </span>
                     </SfButton>
                 </div>
             </div>
@@ -134,15 +201,15 @@ onMounted(() => {
                     </div>
 
                     <div v-if="getGalleryImages.length > 0" class="flex gap-4 mt-6 overflow-x-auto w-full pb-2 px-2">
-                        <img :src="'/storage/' + product.thumbnail"
-                             @click="activeImage = '/storage/' + product.thumbnail"
-                             :class="{'ring-2 ring-indigo-600 scale-105': activeImage === '/storage/' + product.thumbnail}"
+                        <img :src="getImageUrl(product.thumbnail)"
+                             @click="activeImage = getImageUrl(product.thumbnail)"
+                             :class="{'ring-2 ring-indigo-600 scale-105': activeImage === getImageUrl(product.thumbnail)}"
                              class="w-20 h-20 object-cover rounded-xl border border-gray-200 cursor-pointer hover:shadow-md transition flex-shrink-0 bg-white p-1" />
 
                         <img v-for="(img, idx) in getGalleryImages" :key="idx"
-                             :src="'/storage/' + img"
-                             @click="activeImage = '/storage/' + img"
-                             :class="{'ring-2 ring-indigo-600 scale-105': activeImage === '/storage/' + img}"
+                             :src="getImageUrl(img)"
+                             @click="activeImage = getImageUrl(img)"
+                             :class="{'ring-2 ring-indigo-600 scale-105': activeImage === getImageUrl(img)}"
                              class="w-20 h-20 object-cover rounded-xl border border-gray-200 cursor-pointer hover:shadow-md transition flex-shrink-0 bg-white p-1" />
                     </div>
                 </div>
@@ -168,17 +235,17 @@ onMounted(() => {
                     </div>
 
                     <div class="prose text-gray-600 leading-relaxed mb-8 border-t border-b border-gray-100 py-6">
-                        <p>{{ product.description || 'Experience premium quality and outstanding performance. This product is designed to meet your everyday needs with elegance and durability.' }}</p>
+                        <div v-html="product.description || '<p>Experience premium quality and outstanding performance.</p>'"></div>
                     </div>
 
                     <div class="flex items-center gap-4 mt-auto">
                         <div class="flex items-center border-2 border-gray-200 rounded-xl overflow-hidden bg-white">
-                            <button class="px-5 py-3 hover:bg-gray-100 font-bold text-gray-600 text-xl transition">-</button>
-                            <span class="px-6 py-3 font-bold text-lg w-12 text-center">1</span>
-                            <button class="px-5 py-3 hover:bg-gray-100 font-bold text-gray-600 text-xl transition">+</button>
+                            <button @click="quantity > 1 ? quantity-- : null" class="px-5 py-3 hover:bg-gray-100 font-bold text-gray-600 text-xl transition">-</button>
+                            <span class="px-6 py-3 font-bold text-lg w-12 text-center">{{ quantity }}</span>
+                            <button @click="quantity++" class="px-5 py-3 hover:bg-gray-100 font-bold text-gray-600 text-xl transition">+</button>
                         </div>
 
-                        <SfButton size="lg" class="flex-grow bg-slate-900 hover:bg-indigo-600 text-white py-4 rounded-xl flex items-center justify-center gap-2 border-none shadow-xl shadow-slate-200 transition-all duration-300">
+                        <SfButton @click="handleAddToCart" size="lg" class="flex-grow bg-slate-900 hover:bg-indigo-600 text-white py-4 rounded-xl flex items-center justify-center gap-2 border-none shadow-xl shadow-slate-200 transition-all duration-300">
                             <template #prefix><SfIconShoppingCart /></template>
                             Add to Cart
                         </SfButton>
@@ -226,7 +293,7 @@ onMounted(() => {
                                     <SfRating :value="5" :max="5" size="xs" class="text-amber-500" />
                                 </div>
                             </div>
-                            <p class="text-gray-600 ml-16">{{ review.comment || review }}</p>
+                            <p class="text-gray-600 ml-16">{{ review.comment || review.content || (typeof review === 'string' ? review : 'No comment.') }}</p>
                         </div>
                     </div>
 
@@ -264,7 +331,7 @@ onMounted(() => {
                          class="group bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-xl hover:border-indigo-100 transition-all duration-300 cursor-pointer flex flex-col">
 
                         <div class="relative h-48 overflow-hidden bg-white p-4 flex justify-center items-center">
-                            <img :src="rel.thumbnail ? '/storage/'+rel.thumbnail : 'https://placehold.co/400x400'"
+                            <img :src="getImageUrl(rel.thumbnail)"
                                  class="max-w-full max-h-full object-contain group-hover:scale-110 transition-transform duration-500" />
                         </div>
 
@@ -274,7 +341,7 @@ onMounted(() => {
                             </div>
                             <div class="flex items-center justify-between mt-2">
                                 <span class="text-lg font-black text-slate-900">৳{{ rel.base_price }}</span>
-                                <SfButton size="sm" variant="tertiary" square class="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-colors">
+                                <SfButton @click.prevent="handleRelatedAddToCart(rel)" size="sm" variant="tertiary" square class="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-colors">
                                     <SfIconShoppingCart size="sm" />
                                 </SfButton>
                             </div>
@@ -290,5 +357,8 @@ onMounted(() => {
             <p class="text-xl font-bold text-gray-600 mb-8">Product not found!</p>
             <SfButton @click="goBack" class="bg-indigo-600 hover:bg-indigo-700">Go Back Home</SfButton>
         </div>
+
+        <CartSidebar :isOpen="isCartSidebarOpen" @close="isCartSidebarOpen = false" />
+
     </div>
 </template>

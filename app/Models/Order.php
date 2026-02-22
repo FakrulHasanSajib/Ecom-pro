@@ -10,7 +10,8 @@ class Order extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = ['uuid', 'order_number', 'user_id', 'grand_total', 'payment_status', 'order_status', 'tracking_info', 'utm_source', 'ip_address'];
+    // 🔥 $fillable মুছে $guarded দেওয়া হলো, যাতে সব ফিল্ড সেভ হতে পারে
+    protected $guarded = [];
 
     protected $casts = [
         'tracking_info' => 'json',
