@@ -12,8 +12,7 @@ const goHome = () => {
 };
 
 const trackOrder = () => {
-    // পরবর্তীতে ইনভয়েস বা ট্র্যাকিং পেজ বানালে সেখানে পাঠাবেন
-    alert('Tracking feature coming soon!');
+    router.push(`/invoice/${orderNumber}`);
 };
 </script>
 

@@ -1,20 +1,29 @@
 import { createRouter, createWebHistory } from 'vue-router';
 
-// ১. কম্পোনেন্ট ইমপোর্ট
+// ==========================================
+// ১. অ্যাডমিন পেজ ইমপোর্টস
+// ==========================================
 import Dashboard from './Pages/Admin/Dashboard.vue';
 import CategoryIndex from './Pages/Admin/Categories/Index.vue';
 import ProductIndex from './Pages/Admin/Products/Index.vue';
 import ProductCreate from './Pages/Admin/Products/Create.vue';
+import AdminLogin from './Pages/Auth/Login.vue'; // নাম পরিবর্তন করে AdminLogin করা হলো
 
-// ২. আসল লগইন পেজ ইমপোর্ট করুন (আগের টেম্পোরারি লাইন মুছে ফেলুন)
-import Login from './Pages/Auth/Login.vue';
+// ==========================================
+// ২. ফ্রন্টএন্ড/কাস্টমার পেজ ইমপোর্টস
+// ==========================================
 import Home from './Pages/Frontend/Home.vue';
-import ProductDetails from './Pages/Frontend/ProductDetails.vue'; // পাথ ঠিক করা হয়েছে
-import Checkout from './Pages/Frontend/Checkout.vue'; // চেকআউট পেজ ইমপোর্ট করা হয়েছে
+import ProductDetails from './Pages/Frontend/ProductDetails.vue';
+import Checkout from './Pages/Frontend/Checkout.vue';
 import OrderSuccess from './Pages/Frontend/OrderSuccess.vue';
+import Invoice from './Pages/Frontend/Invoice.vue';
+import CustomerLogin from './Pages/Frontend/Login.vue';
+import CustomerDashboard from './Pages/Frontend/Dashboard.vue';
 
 const routes = [
-    // --- Public Routes ---
+    // ==========================================
+    // --- পাবলিক এবং কাস্টমার রাউটস ---
+    // ==========================================
     {
         path: '/',
         name: 'Home',
@@ -26,26 +35,49 @@ const routes = [
         component: ProductDetails
     },
     {
+        path: '/checkout',
+        name: 'Checkout',
+        component: Checkout
+    },
+    {
+        path: '/order-success',
+        name: 'OrderSuccess',
+        component: OrderSuccess
+    },
+    {
+        path: '/invoice/:order_number',
+        name: 'Invoice',
+        component: Invoice
+    },
+    {
         path: '/login',
-        name: 'login',
-        component: Login
+        name: 'CustomerLogin',
+        component: CustomerLogin // কাস্টমার লগিন পেজ
+    },
+    {
+        path: '/dashboard',
+        name: 'CustomerDashboard',
+        component: CustomerDashboard // কাস্টমার ড্যাশবোর্ড পেজ
     },
 
-    // --- Admin Routes ---
+    // ==========================================
+    // --- অ্যাডমিন রাউটস ---
+    // ==========================================
+    {
+        path: '/admin/login',
+        name: 'AdminLogin',
+        component: AdminLogin // অ্যাডমিন লগিন পেজ
+    },
     {
         path: '/admin/dashboard',
         name: 'admin.dashboard',
-        component: Dashboard
+        component: Dashboard // অ্যাডমিন ড্যাশবোর্ড
     },
-
-    // --- Category Routes ---
     {
         path: '/admin/categories',
         name: 'admin.categories.index',
         component: CategoryIndex
     },
-
-    // --- Product Routes ---
     {
         path: '/admin/products',
         name: 'admin.products.index',
@@ -63,22 +95,14 @@ const routes = [
         props: true
     },
 
-    // --- 404 Not Found (এটি সবসময় একদম শেষে থাকতে হয়) ---
+    // ==========================================
+    // --- 404 Not Found (এটি সবসময় একদম শেষে থাকতে হবে) ---
+    // ==========================================
     {
         path: '/:pathMatch(.*)*',
         name: 'NotFound',
         component: { template: '<div class="p-10 text-center text-red-500"><h1>404 - Page Not Found</h1></div>' }
-    },
-    {
-        path: '/checkout',
-        name: 'Checkout',
-        component: Checkout
-    },
-    {
-        path: '/order-success',
-        name: 'OrderSuccess',
-        component: OrderSuccess
-    },
+    }
 ];
 
 const router = createRouter({

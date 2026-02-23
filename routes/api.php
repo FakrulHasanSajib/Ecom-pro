@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\ReviewController;
 use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\AuthController;
 
+
 /*
 |--------------------------------------------------------------------------
 | API Routes (Pure Backend)
@@ -32,6 +33,7 @@ use App\Http\Controllers\Api\AuthController;
 // ১. পাবলিক রাউট (লগইন বা টোকেন ছাড়াই এক্সেস করা যাবে)
 // --------------------------------------------------------
 Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register', [AuthController::class, 'register']);
 
 Route::prefix('public')->group(function () {
     // এই রুটগুলো এখন সঠিকভাবে ডাটা রিটার্ন করবে
@@ -44,6 +46,8 @@ Route::prefix('public')->group(function () {
 
     // 🔥 চেকআউট রাউটটি এখানে পাবলিক করা হলো (যাতে লগিন ছাড়াও অর্ডার করা যায়)
     Route::post('/checkout', [OrderController::class, 'store']);
+    // 🔥 ইনভয়েসের রাউটটি এখানে পাবলিক হিসেবে দিন
+    Route::get('/invoice/{order_number}', [InvoiceController::class, 'show']);
 });
 
 // ২. পেমেন্ট গেটওয়ে কলব্যাক

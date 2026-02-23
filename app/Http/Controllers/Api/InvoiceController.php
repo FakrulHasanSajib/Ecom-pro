@@ -8,29 +8,27 @@ use Illuminate\Http\Request;
 
 class InvoiceController extends Controller
 {
-    public function show($orderUuid)
+public function show($orderNumber)
     {
-        // ১. অর্ডার ডাটা রিট্রিভ করা
-        $order = Order::where('uuid', $orderUuid)
-                      ->with(['items.product', 'user', 'transaction']) // ট্রানজেকশনসহ সব তথ্য
+        // 🔥 'transaction' মুছে ফেলা হলো
+        $order = Order::where('order_number', $orderNumber)
+                      ->with(['items.product', 'user'])
                       ->firstOrFail();
 
-        // ২. কোম্পানির তথ্য (সেটিংস থেকে)
         $companyInfo = [
-            'name' => get_setting('site_name', 'My Shop'),
-            'logo' => get_setting_image('site_logo'),
-            'address' => get_setting('footer_address', 'Dhaka, Bangladesh'),
-            'phone' => get_setting('header_phone'),
-            'email' => get_setting('site_email'),
+            'name' => function_exists('get_setting') ? get_setting('site_name', 'My Shop') : 'E-Shop Pro',
+            'logo' => function_exists('get_setting_image') ? get_setting_image('site_logo') : null,
+            'address' => function_exists('get_setting') ? get_setting('footer_address', 'Dhaka, Bangladesh') : 'Dhaka, Bangladesh',
+            'phone' => function_exists('get_setting') ? get_setting('header_phone') : '01700000000',
+            'email' => function_exists('get_setting') ? get_setting('site_email') : 'support@eshop.com',
         ];
 
-        // ৩. শুধু JSON রিটার্ন করা
         return response()->json([
             'status' => 'success',
             'invoice_data' => [
                 'order' => $order,
                 'company' => $companyInfo,
-                'generated_at' => now()->format('Y-m-d H:i:s'),
+                'generated_at' => now()->format('Y-m-d h:i A'),
             ]
         ]);
     }
