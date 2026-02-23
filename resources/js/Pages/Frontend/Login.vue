@@ -48,7 +48,11 @@ const submitForm = async () => {
             authStore.setToken(res.data.token);
             authStore.setUser(res.data.user);
             showToast('Login Successful! 🎉');
-            router.push('/dashboard'); // লগিন শেষে ড্যাশবোর্ডে যাবে
+
+            // 🔥 পার্মানেন্ট রিডাইরেক্ট ফিক্স (শ্যাডো আটকাতে)
+            setTimeout(() => {
+                window.location.href = '/dashboard';
+            }, 1000);
 
         } else {
             // 🔥 Register API Call
@@ -62,7 +66,11 @@ const submitForm = async () => {
             authStore.setToken(res.data.token);
             authStore.setUser(res.data.user);
             showToast('Account Created Successfully! 🎉');
-            router.push('/dashboard');
+
+            // 🔥 পার্মানেন্ট রিডাইরেক্ট ফিক্স (শ্যাডো আটকাতে)
+            setTimeout(() => {
+                window.location.href = '/dashboard';
+            }, 1000);
         }
     } catch (error) {
         console.error("Auth Error:", error);

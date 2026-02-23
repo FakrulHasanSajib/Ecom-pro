@@ -20,10 +20,10 @@ const activeTab = ref('overview');
 
 const backendUrl = 'http://127.0.0.1:73';
 
-// যদি ইউজার লগিন করা না থাকে, তাহলে লগিন পেজে পাঠিয়ে দিবে
+// যদি ইউজার লগিন করা না থাকে, তাহলে লগিন পেজে পাঠিয়ে দিবে
 onMounted(() => {
     if (!authStore.isAuthenticated) {
-        router.push('/login');
+        window.location.href = '/login'; // এখানেও হার্ড রিডাইরেক্ট দেওয়া হলো
     }
 });
 
@@ -44,10 +44,14 @@ const handleLogout = async () => {
             icon: 'success',
             title: 'Logged out successfully! 👋',
             showConfirmButton: false,
-            timer: 2000,
+            timer: 1500,
             timerProgressBar: true,
         });
-        router.push('/login');
+        
+        // 🔥 পার্মানেন্ট রিডাইরেক্ট ফিক্স (শ্যাডো আটকাতে)
+        setTimeout(() => {
+            window.location.href = '/login';
+        }, 1500);
     }
 };
 
