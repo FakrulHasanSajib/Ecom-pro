@@ -49,9 +49,9 @@ const submitForm = async () => {
             authStore.setUser(res.data.user);
             showToast('Login Successful! 🎉');
 
-            // 🔥 পার্মানেন্ট রিডাইরেক্ট ফিক্স (শ্যাডো আটকাতে)
+            // 🔥 ড্যাশবোর্ডের বদলে হোম পেজে রিডাইরেক্ট করবে
             setTimeout(() => {
-                window.location.href = '/dashboard';
+                window.location.href = '/';
             }, 1000);
 
         } else {
@@ -67,9 +67,9 @@ const submitForm = async () => {
             authStore.setUser(res.data.user);
             showToast('Account Created Successfully! 🎉');
 
-            // 🔥 পার্মানেন্ট রিডাইরেক্ট ফিক্স (শ্যাডো আটকাতে)
+            // 🔥 ড্যাশবোর্ডের বদলে হোম পেজে রিডাইরেক্ট করবে
             setTimeout(() => {
-                window.location.href = '/dashboard';
+                window.location.href = '/';
             }, 1000);
         }
     } catch (error) {

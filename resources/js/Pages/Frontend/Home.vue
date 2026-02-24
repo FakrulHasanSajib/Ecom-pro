@@ -2,7 +2,8 @@
 import { ref, onMounted, watch } from 'vue';
 import axios from 'axios';
 import { useCartStore } from '../../stores/cart';
-import Swal from 'sweetalert2'; // Toast Notification এর জন্য
+import { useAuthStore } from '../../stores/auth'; // 🔥 Auth Store যুক্ত করা হলো
+import Swal from 'sweetalert2';
 import {
     SfButton,
     SfIconShoppingCart,
@@ -14,6 +15,7 @@ import {
 } from '@storefront-ui/vue';
 
 const cartStore = useCartStore();
+const authStore = useAuthStore(); // 🔥 Auth স্টোর ইনিশিয়ালাইজ করা হলো
 const products = ref([]);
 const categories = ref([]);
 const loading = ref(true);
@@ -39,7 +41,6 @@ const fetchData = async () => {
     try {
         loading.value = true;
 
-        // কুয়েরি প্যারামিটার তৈরি
         const params = {};
         if (searchQuery.value) params.search = searchQuery.value;
         if (selectedCategory.value) params.category_slug = selectedCategory.value;
@@ -62,13 +63,11 @@ const fetchData = async () => {
     }
 };
 
-// ক্যাটাগরি ফিল্টার
 const filterByCategory = (slug) => {
     selectedCategory.value = selectedCategory.value === slug ? null : slug;
     fetchData();
 };
 
-// সব ফিল্টার রিসেট
 const resetFilters = () => {
     selectedCategory.value = null;
     searchQuery.value = '';
@@ -78,7 +77,6 @@ const resetFilters = () => {
     fetchData();
 };
 
-// কার্টে অ্যাড করার ফাংশন (SweetAlert Toast সহ)
 const handleAddToCart = (product) => {
     cartStore.addToCart(product);
     Swal.fire({
@@ -95,7 +93,6 @@ const handleAddToCart = (product) => {
     });
 };
 
-// সার্চ টাইপ করার পর একটু অপেক্ষা করে কল হবে (Debounce Effect)
 let timeout = null;
 watch(searchQuery, () => {
     clearTimeout(timeout);
@@ -132,9 +129,19 @@ onMounted(() => {
                 </div>
 
                 <div class="flex items-center gap-2 md:gap-4">
-                    <SfButton variant="tertiary" square class="text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-full hidden sm:flex transition-all">
-                        <SfIconPerson />
-                    </SfButton>
+                    <template v-if="authStore.isAuthenticated">
+                        <router-link to="/dashboard" class="flex items-center gap-2 text-indigo-600 font-bold hover:bg-indigo-50 px-3 py-2 rounded-lg transition-all">
+                            <SfIconPerson />
+                            <span class="hidden sm:inline">My Dashboard</span>
+                        </router-link>
+                    </template>
+                    <template v-else>
+                        <router-link to="/login">
+                            <SfButton variant="tertiary" class="font-bold text-indigo-600 hover:bg-indigo-50 px-4 transition-all">
+                                Login
+                            </SfButton>
+                        </router-link>
+                    </template>
 
                     <router-link to="/checkout">
                         <SfButton variant="tertiary" square class="text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-full relative transition-all">
