@@ -27,6 +27,29 @@ class OrderController extends Controller
         $this->fraudCheckService = $fraudCheckService;
         $this->trackingService = $trackingService;
     }
+    // 🔥 এই মেথডটি ড্যাশবোর্ডে অর্ডার দেখানোর জন্য যুক্ত করা হলো
+    public function index(Request $request)
+    {
+        try {
+            // শুধুমাত্র যে ইউজার লগইন করা আছে, তার অর্ডারগুলোই আনবে
+            $orders = \App\Models\Order::where('user_id', $request->user()->id)
+                ->orderBy('id', 'desc')
+                ->get();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $orders
+            ], 200);
+
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Order Fetch Exception: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to fetch orders.',
+                'data' => []
+            ], 500);
+        }
+    }
 
     public function store(Request $request)
     {

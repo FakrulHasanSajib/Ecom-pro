@@ -11,11 +11,30 @@ use Illuminate\Support\Facades\Validator;
 class WishlistController extends Controller
 {
     // ১. ইউজার তার সব উইশলিস্ট দেখবে
-    public function index()
-    {
-        $wishlists = Auth::user()->wishlists()->with('product')->get();
-        return response()->json($wishlists);
+// app/Http/Controllers/Api/WishlistController.php
+
+public function index(Request $request)
+{
+    try {
+        // উইশলিস্টের সাথে প্রোডাক্টের ডাটা (ছবি, দাম) নিয়ে আসা হচ্ছে
+        $wishlist = \App\Models\Wishlist::with('product')
+            ->where('user_id', $request->user()->id)
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $wishlist
+        ], 200);
+
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Wishlist Error: ' . $e->getMessage());
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Failed to fetch wishlist.',
+            'error' => $e->getMessage() // এটি দিলে আপনি ব্রাউজারে এররটি দেখতে পাবেন
+        ], 500);
     }
+}
 
     // ২. এড অথবা রিমুভ (Toggle)
     public function toggle(Request $request)

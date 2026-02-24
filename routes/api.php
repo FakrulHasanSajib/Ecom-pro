@@ -107,4 +107,11 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::post('/media', [MediaController::class, 'store']);
     Route::get('/settings', [SettingController::class, 'index']);
     Route::post('/settings', [SettingController::class, 'update']);
+    // --- Order Management (Admin) ---
+    Route::get('/orders', [\App\Http\Controllers\Admin\OrderController::class, 'index']);
+    Route::post('/orders/{id}/status', [\App\Http\Controllers\Admin\OrderController::class, 'updateStatus']);
+    // Order Status Settings
+    Route::get('/order-statuses', [\App\Http\Controllers\Admin\OrderStatusController::class, 'index']);
+    Route::post('/order-statuses', [\App\Http\Controllers\Admin\OrderStatusController::class, 'store']);
+    Route::delete('/order-statuses/{id}', [\App\Http\Controllers\Admin\OrderStatusController::class, 'destroy']);
 });

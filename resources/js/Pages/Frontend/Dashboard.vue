@@ -12,6 +12,7 @@ import {
     SfIconLocationOn,
     SfIconLogout,
     SfIconArrowBack,
+    SfIconClose,
     SfLoaderCircular
 } from '@storefront-ui/vue';
 
