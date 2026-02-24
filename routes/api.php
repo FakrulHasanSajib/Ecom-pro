@@ -44,9 +44,9 @@ Route::prefix('public')->group(function () {
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::get('/sliders', [SliderController::class, 'index']);
 
-    // 🔥 চেকআউট রাউটটি এখানে পাবলিক করা হলো (যাতে লগিন ছাড়াও অর্ডার করা যায়)
+    // 🔥 চেকআউট রাউটটি এখানে পাবলিক করা হলো (যাতে লগিন ছাড়াও অর্ডার করা যায়)
     Route::post('/checkout', [OrderController::class, 'store']);
-    // 🔥 ইনভয়েসের রাউটটি এখানে পাবলিক হিসেবে দিন
+    // 🔥 ইনভয়েসের রাউটটি এখানে পাবলিক হিসেবে দিন
     Route::get('/invoice/{order_number}', [InvoiceController::class, 'show']);
 });
 
@@ -64,9 +64,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return $request->user();
     });
 
+    // 🔥 এই লাইনটি নতুন যুক্ত করা হলো (ড্যাশবোর্ডে অর্ডার লিস্ট দেখানোর জন্য)
+    Route::get('/orders', [OrderController::class, 'index']);
+
     Route::get('/invoice/{uuid}', [InvoiceController::class, 'show']);
     Route::apiResource('addresses', UserAddressController::class);
     Route::post('/apply-coupon', [CouponController::class, 'apply']);
+
+    // উইশলিস্টের রাউট
     Route::get('/wishlist', [WishlistController::class, 'index']);
     Route::post('/wishlist/toggle', [WishlistController::class, 'toggle']);
     Route::post('/reviews', [ReviewController::class, 'store']);
