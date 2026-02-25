@@ -6,13 +6,13 @@ import Swal from 'sweetalert2';
 
 const isSidebarOpen = ref(true);
 const isProductMenuOpen = ref(false);
-const isOrderMenuOpen = ref(false); // 🔥 অর্ডারের সাব-মেনু খোলার জন্য
+const isOrderMenuOpen = ref(false);
 
 const router = useRouter();
 const route = useRoute();
 
 const userName = ref(localStorage.getItem('user_name') || 'Admin');
-const orderStatuses = ref([]); // 🔥 ডাইনামিক স্ট্যাটাস রাখার জন্য
+const orderStatuses = ref([]);
 
 onMounted(async () => {
     // মেনু ওপেন রাখা
@@ -82,60 +82,72 @@ const logout = async () => {
             </div>
 
             <nav class="mt-4 px-2 space-y-2 flex-1 overflow-y-auto custom-scrollbar">
-                <router-link to="/admin/dashboard" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="{'bg-indigo-600': route.path === '/admin/dashboard'}">
+                <router-link to="/admin/dashboard" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="route.path === '/admin/dashboard' ? 'bg-indigo-600' : ''">
                     <span class="text-xl w-6 text-center">📊</span>
                     <span v-if="isSidebarOpen" class="ml-3 font-medium">Dashboard</span>
                 </router-link>
 
                 <div>
-                    <button @click="toggleOrderMenu" class="w-full flex items-center justify-between p-3 hover:bg-indigo-600 rounded-lg transition focus:outline-none" :class="{'bg-slate-800': isOrderMenuOpen || route.path.startsWith('/admin/orders')}">
+                    <button @click="toggleOrderMenu" class="w-full flex items-center justify-between p-3 hover:bg-indigo-600 rounded-lg transition focus:outline-none" :class="isOrderMenuOpen || route.path.startsWith('/admin/orders') ? 'bg-slate-800' : ''">
                         <div class="flex items-center">
                             <span class="text-xl w-6 text-center">🛒</span>
                             <span v-if="isSidebarOpen" class="ml-3 font-medium">Orders</span>
                         </div>
-                        <svg v-if="isSidebarOpen" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-200" :class="{'rotate-180': isOrderMenuOpen}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg v-if="isSidebarOpen" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-200" :class="isOrderMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
 
-                    <div v-show="isSidebarOpen && isOrderMenuOpen" class="mt-1 space-y-1 bg-slate-800/50 rounded-lg overflow-hidden">
-                        <router-link to="/admin/orders" class="flex items-center pl-12 pr-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-indigo-500 transition" :class="{'text-white bg-indigo-500': route.path === '/admin/orders' && !route.query.status}">
+                    <div v-show="isSidebarOpen && isOrderMenuOpen" class="mt-1 space-y-1 bg-slate-800/50 rounded-lg overflow-hidden py-1">
+                        <router-link to="/admin/orders"
+                            class="flex items-center pl-12 pr-4 py-2 text-sm transition"
+                            :class="route.path === '/admin/orders' && !route.query.status ? 'text-white bg-indigo-500 font-bold' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
                             All Orders
                         </router-link>
-                        <router-link v-for="status in orderStatuses" :key="status.id" :to="`/admin/orders?status=${status.name}`" class="flex items-center pl-12 pr-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-indigo-500 transition" :class="{'text-white bg-indigo-500': route.query.status === status.name}">
+                        <router-link v-for="status in orderStatuses" :key="status.id" :to="`/admin/orders?status=${status.name}`"
+                            class="flex items-center pl-12 pr-4 py-2 text-sm transition"
+                            :class="route.query.status === status.name ? 'text-white bg-indigo-500 font-bold' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
                             {{ status.name }} Orders
                         </router-link>
                     </div>
                 </div>
 
                 <div>
-                    <button @click="toggleProductMenu" class="w-full flex items-center justify-between p-3 hover:bg-indigo-600 rounded-lg transition focus:outline-none" :class="{'bg-slate-800': isProductMenuOpen || route.path.startsWith('/admin/products')}">
+                    <button @click="toggleProductMenu" class="w-full flex items-center justify-between p-3 hover:bg-indigo-600 rounded-lg transition focus:outline-none" :class="isProductMenuOpen || route.path.startsWith('/admin/products') ? 'bg-slate-800' : ''">
                         <div class="flex items-center">
                             <span class="text-xl w-6 text-center">📦</span>
                             <span v-if="isSidebarOpen" class="ml-3 font-medium">Products</span>
                         </div>
-                        <svg v-if="isSidebarOpen" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-200" :class="{'rotate-180': isProductMenuOpen}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg v-if="isSidebarOpen" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-200" :class="isProductMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
 
-                    <div v-show="isSidebarOpen && isProductMenuOpen" class="mt-1 space-y-1 bg-slate-800/50 rounded-lg overflow-hidden">
-                        <router-link to="/admin/products" class="flex items-center pl-12 pr-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-indigo-500 transition" :class="{'text-white bg-indigo-500': route.path === '/admin/products'}">Product List</router-link>
-                        <router-link to="/admin/products/create" class="flex items-center pl-12 pr-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-indigo-500 transition" :class="{'text-white bg-indigo-500': route.path === '/admin/products/create'}">Add New Product</router-link>
+                    <div v-show="isSidebarOpen && isProductMenuOpen" class="mt-1 space-y-1 bg-slate-800/50 rounded-lg overflow-hidden py-1">
+                        <router-link to="/admin/products"
+                            class="flex items-center pl-12 pr-4 py-2 text-sm transition"
+                            :class="route.path === '/admin/products' ? 'text-white bg-indigo-500 font-bold' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
+                            Product List
+                        </router-link>
+                        <router-link to="/admin/products/create"
+                            class="flex items-center pl-12 pr-4 py-2 text-sm transition"
+                            :class="route.path === '/admin/products/create' ? 'text-white bg-indigo-500 font-bold' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
+                            Add New Product
+                        </router-link>
                     </div>
                 </div>
 
-                <router-link to="/admin/categories" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="{'bg-indigo-600': route.path === '/admin/categories'}">
+                <router-link to="/admin/categories" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="route.path === '/admin/categories' ? 'bg-indigo-600' : ''">
                     <span class="text-xl w-6 text-center">📂</span>
                     <span v-if="isSidebarOpen" class="ml-3 font-medium">Categories</span>
                 </router-link>
 
-                <router-link to="/admin/order-statuses" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="{'bg-indigo-600': route.path === '/admin/order-statuses'}">
+                <router-link to="/admin/order-statuses" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="route.path === '/admin/order-statuses' ? 'bg-indigo-600' : ''">
                     <span class="text-xl w-6 text-center">🏷️</span>
                     <span v-if="isSidebarOpen" class="ml-3 font-medium">Order Statuses</span>
                 </router-link>
 
-                <router-link to="/admin/settings" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="{'bg-indigo-600': route.path === '/admin/settings'}">
+                <router-link to="/admin/settings" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="route.path === '/admin/settings' ? 'bg-indigo-600' : ''">
                     <span class="text-xl w-6 text-center">⚙️</span>
                     <span v-if="isSidebarOpen" class="ml-3 font-medium">Settings</span>
                 </router-link>
@@ -161,7 +173,7 @@ const logout = async () => {
 </template>
 
 <style scoped>
-.router-link-active:not(.w-full) { background-color: #4f46e5; }
+/* গ্লোবাল .router-link-active ক্লাসটি মুছে ফেলা হয়েছে যাতে এটি অন্যান্য লিংকে প্রভাব না ফেলে */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #4b5563; border-radius: 10px; }
 </style>

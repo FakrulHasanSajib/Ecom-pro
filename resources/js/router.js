@@ -10,6 +10,8 @@ import ProductCreate from './Pages/Admin/Products/Create.vue';
 import AdminLogin from './Pages/Auth/Login.vue'; // নাম পরিবর্তন করে AdminLogin করা হলো
 import AdminOrderIndex from './Pages/Admin/Orders/Index.vue';
 import AdminOrderStatus from './Pages/Admin/OrderStatuses/Index.vue';
+import AdminOrderCreate from './Pages/Admin/Orders/Create.vue';
+import AdminOrderEdit from './Pages/Admin/Orders/Edit.vue';
 
 // ==========================================
 // ২. ফ্রন্টএন্ড/কাস্টমার পেজ ইমপোর্টস
@@ -114,6 +116,17 @@ const routes = [
     path: '/admin/order-statuses',
     name: 'admin.order-statuses.index',
     component: AdminOrderStatus
+},
+{
+    path: '/admin/orders/create',
+    name: 'admin.orders.create',
+    component: AdminOrderCreate
+},
+{
+    path: '/admin/orders/:id/edit',
+    name: 'admin.orders.edit',
+    component: AdminOrderEdit,
+    props: true
 },
 ];
 

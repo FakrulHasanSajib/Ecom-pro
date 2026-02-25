@@ -110,6 +110,10 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     // --- Order Management (Admin) ---
     Route::get('/orders', [\App\Http\Controllers\Admin\OrderController::class, 'index']);
     Route::post('/orders/{id}/status', [\App\Http\Controllers\Admin\OrderController::class, 'updateStatus']);
+    Route::delete('/orders/{id}', [\App\Http\Controllers\Admin\OrderController::class, 'destroy']);
+    Route::post('/orders', [OrderController::class, 'store']);
+    Route::get('/orders/{id}', [\App\Http\Controllers\Admin\OrderController::class, 'show']);
+Route::put('/orders/{id}', [\App\Http\Controllers\Admin\OrderController::class, 'update']);
     // Order Status Settings
     Route::get('/order-statuses', [\App\Http\Controllers\Admin\OrderStatusController::class, 'index']);
     Route::post('/order-statuses', [\App\Http\Controllers\Admin\OrderStatusController::class, 'store']);
