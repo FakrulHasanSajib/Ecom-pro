@@ -12,6 +12,7 @@ import AdminOrderIndex from './Pages/Admin/Orders/Index.vue';
 import AdminOrderStatus from './Pages/Admin/OrderStatuses/Index.vue';
 import AdminOrderCreate from './Pages/Admin/Orders/Create.vue';
 import AdminOrderEdit from './Pages/Admin/Orders/Edit.vue';
+import AdminOrderShow from './Pages/Admin/Orders/Show.vue';
 
 // ==========================================
 // ২. ফ্রন্টএন্ড/কাস্টমার পেজ ইমপোর্টস
@@ -38,6 +39,12 @@ const routes = [
         name: 'ProductDetails',
         component: ProductDetails
     },
+    {
+    path: '/admin/orders/:id', // 🔥 View বা Show রাউট
+    name: 'admin.orders.show',
+    component: AdminOrderShow,
+    props: true
+},
     {
         path: '/checkout',
         name: 'Checkout',
