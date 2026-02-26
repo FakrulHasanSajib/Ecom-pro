@@ -46,6 +46,7 @@ Route::prefix('public')->group(function () {
 
     // 🔥 চেকআউট রাউটটি এখানে পাবলিক করা হলো (যাতে লগিন ছাড়াও অর্ডার করা যায়)
     Route::post('/checkout', [OrderController::class, 'store']);
+
     // 🔥 ইনভয়েসের রাউটটি এখানে পাবলিক হিসেবে দিন
     Route::get('/invoice/{order_number}', [InvoiceController::class, 'show']);
 });
@@ -64,7 +65,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return $request->user();
     });
 
-    // 🔥 এই লাইনটি নতুন যুক্ত করা হলো (ড্যাশবোর্ডে অর্ডার লিস্ট দেখানোর জন্য)
+    // ড্যাশবোর্ডে অর্ডার লিস্ট দেখানোর জন্য
     Route::get('/orders', [OrderController::class, 'index']);
 
     Route::get('/invoice/{uuid}', [InvoiceController::class, 'show']);
@@ -107,14 +108,24 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::post('/media', [MediaController::class, 'store']);
     Route::get('/settings', [SettingController::class, 'index']);
     Route::post('/settings', [SettingController::class, 'update']);
+
+
     // --- Order Management (Admin) ---
+    // 🔥 ১. প্রথমে Static Routes এবং Bulk Action-গুলো রাখতে হবে
     Route::get('/orders', [\App\Http\Controllers\Admin\OrderController::class, 'index']);
-    Route::post('/orders/{id}/status', [\App\Http\Controllers\Admin\OrderController::class, 'updateStatus']);
-    Route::delete('/orders/{id}', [\App\Http\Controllers\Admin\OrderController::class, 'destroy']);
-    Route::post('/orders', [OrderController::class, 'store']);
+    Route::post('/orders', [\App\Http\Controllers\Admin\OrderController::class, 'store']);
+    Route::get('/orders/export', [\App\Http\Controllers\Admin\OrderController::class, 'export']);
+    Route::post('/orders/print', [\App\Http\Controllers\Admin\OrderController::class, 'print']);
+    Route::post('/orders/bulk-status', [\App\Http\Controllers\Admin\OrderController::class, 'bulkStatus']);
+    Route::post('/orders/bulk-assign', [\App\Http\Controllers\Admin\OrderController::class, 'bulkAssign']);
+
+    // 🔥 ২. এরপর Dynamic Routes (যেগুলোতে {id} আছে, সেগুলো সবসময় নিচে থাকবে)
     Route::get('/orders/{id}', [\App\Http\Controllers\Admin\OrderController::class, 'show']);
-Route::put('/orders/{id}', [\App\Http\Controllers\Admin\OrderController::class, 'update']);
-    // Order Status Settings
+    Route::put('/orders/{id}', [\App\Http\Controllers\Admin\OrderController::class, 'update']);
+    Route::delete('/orders/{id}', [\App\Http\Controllers\Admin\OrderController::class, 'destroy']);
+    Route::post('/orders/{id}/status', [\App\Http\Controllers\Admin\OrderController::class, 'updateStatus']);
+
+    // --- Order Status Settings ---
     Route::get('/order-statuses', [\App\Http\Controllers\Admin\OrderStatusController::class, 'index']);
     Route::post('/order-statuses', [\App\Http\Controllers\Admin\OrderStatusController::class, 'store']);
     Route::delete('/order-statuses/{id}', [\App\Http\Controllers\Admin\OrderStatusController::class, 'destroy']);

@@ -15,7 +15,7 @@ const loading = ref(true);
 const selectedOrders = ref([]);
 const selectAll = ref(false);
 
-// 🔥 URL এর সাথে সরাসরি সংযুক্ত ফিল্টার (ম্যাজিক এখানেই!)
+// 🔥 URL এর সাথে সরাসরি সংযুক্ত ফিল্টার
 const statusFilter = computed({
   get: () => route.query.status || '',
   set: (val) => router.push({ query: { ...route.query, status: val || undefined } })
@@ -30,11 +30,10 @@ const assignFilter = ref(route.query.assign || '');
 // API বেস URL
 const API_URL = 'http://127.0.0.1:73/api/admin';
 
-// 🔥 ফিল্টার করা অর্ডার (এখন সাইডবারে ক্লিক করলেই এটি আপডেট হবে)
+// ফিল্টার করা অর্ডার
 const filteredOrders = computed(() => {
   let result = rawOrders.value;
 
-  // সার্চ ফিল্টার
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase();
     result = result.filter(order =>
@@ -44,12 +43,10 @@ const filteredOrders = computed(() => {
     );
   }
 
-  // সোর্স ফিল্টার
   if (orderSource.value) {
     result = result.filter(order => order.order_source === orderSource.value);
   }
 
-  // স্ট্যাটাস ফিল্টার (Canceled এবং Cancelled দুটোর জন্যই কাজ করবে)
   if (statusFilter.value) {
     const filterStatus = statusFilter.value.trim().toLowerCase();
     result = result.filter(order => {
@@ -61,7 +58,6 @@ const filteredOrders = computed(() => {
     });
   }
 
-  // অ্যাসাইন ফিল্টার
   if (assignFilter.value) {
     result = result.filter(order => order.user_id == assignFilter.value);
   }
@@ -115,7 +111,7 @@ const updateStatus = async (orderId, newStatus) => {
     );
 
     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Status Updated!', showConfirmButton: false, timer: 1500 });
-    fetchOrders(); // ডাটা রিফ্রেশ
+    fetchOrders();
   } catch (error) {
     Swal.fire({ icon: 'error', title: 'Error', text: 'Failed to update status' });
   }
@@ -140,7 +136,7 @@ const deleteOrder = async (orderId) => {
   }
 };
 
-// বাল্ক স্ট্যাটাস আপডেট
+// 🔥 ১. বাল্ক স্ট্যাটাস আপডেট
 const bulkStatusUpdate = async () => {
   if (selectedOrders.value.length === 0) return Swal.fire('Warning', 'Please select at least one order', 'warning');
 
@@ -162,9 +158,70 @@ const bulkStatusUpdate = async () => {
   }
 };
 
-const bulkAssignUpdate = async () => { Swal.fire('Info', 'Bulk assign feature is coming soon!', 'info'); };
-const printOrders = async () => { Swal.fire('Info', 'Print feature is coming soon!', 'info'); };
-const exportOrders = async () => { Swal.fire('Info', 'Export feature is coming soon!', 'info'); };
+// 🔥 ২. বাল্ক অ্যাসাইন আপডেট
+const bulkAssignUpdate = async () => {
+  if (selectedOrders.value.length === 0) return Swal.fire('Warning', 'Please select at least one order', 'warning');
+
+  const { value: userId } = await Swal.fire({
+    title: 'Assign to User',
+    input: 'select',
+    inputOptions: users.value.reduce((acc, user) => { acc[user.id] = user.name; return acc; }, {}),
+    showCancelButton: true,
+    inputPlaceholder: 'Select an Assignee'
+  });
+
+  if (userId) {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post(`${API_URL}/orders/bulk-assign`, { order_ids: selectedOrders.value, user_id: userId }, { headers: { Authorization: `Bearer ${token}` } });
+      Swal.fire('Success', 'Orders assigned successfully', 'success');
+      fetchOrders();
+    } catch (error) {
+      Swal.fire('Error', 'Failed to assign orders', 'error');
+    }
+  }
+};
+
+// 🔥 ৩. প্রিন্ট অর্ডার (একাধিক ইনভয়েস একসাথে)
+const printOrders = async () => {
+  if (selectedOrders.value.length === 0) return Swal.fire('Warning', 'Please select at least one order', 'warning');
+
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axios.post(`${API_URL}/orders/print`, { order_ids: selectedOrders.value }, { headers: { Authorization: `Bearer ${token}` } });
+
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(response.data.view);
+    printWindow.document.close();
+  } catch (error) {
+    Swal.fire('Error', 'Failed to generate print view', 'error');
+  }
+};
+
+// 🔥 ৪. এক্সপোর্ট CSV
+const exportOrders = async () => {
+  if (selectedOrders.value.length === 0) return Swal.fire('Warning', 'Please select at least one order', 'warning');
+
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axios.get(`${API_URL}/orders/export`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params: { ids: selectedOrders.value.join(',') },
+      responseType: 'blob'
+    });
+
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `orders_export_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+  } catch (error) {
+    Swal.fire('Error', 'Failed to export CSV file', 'error');
+  }
+};
 
 // সিলেক্ট অল টগল
 const toggleSelectAll = () => {
@@ -180,7 +237,7 @@ const toggleSelect = (orderId) => {
   selectAll.value = filteredOrders.value.length === selectedOrders.value.length;
 };
 
-// ফিল্টার অ্যাপ্লাই (শুধুমাত্র অন্যান্য ফিল্টারের জন্য)
+// ফিল্টার অ্যাপ্লাই
 const applyFilters = () => {
   router.push({
     query: { ...route.query, search: searchQuery.value || undefined, source: orderSource.value || undefined, assign: assignFilter.value || undefined }
@@ -190,7 +247,7 @@ const applyFilters = () => {
 // রিসেট ফিল্টার
 const resetFilters = () => {
   searchQuery.value = ''; dateFilter.value = ''; orderSource.value = ''; assignFilter.value = '';
-  router.push({ query: {} }); // URL ক্লিয়ার করা হচ্ছে
+  router.push({ query: {} });
   fetchOrders();
 };
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OrderController extends Controller
 {
@@ -150,5 +151,120 @@ class OrderController extends Controller
         } catch (\Exception $e) {
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
+    }
+    // ১. Bulk Status Update
+    public function bulkStatus(Request $request)
+    {
+        $request->validate([
+            'order_ids' => 'required|array',
+            'status' => 'required|string'
+        ]);
+
+        \App\Models\Order::whereIn('id', $request->order_ids)->update(['status' => $request->status]);
+
+        return response()->json(['status' => 'success', 'message' => 'Status updated for selected orders!']);
+    }
+
+    // ২. Bulk Assign Update
+    public function bulkAssign(Request $request)
+    {
+        $request->validate([
+            'order_ids' => 'required|array',
+            'user_id' => 'required'
+        ]);
+
+        // user_id দিয়ে ডেলিভারি ম্যান বা স্টাফ অ্যাসাইন করা হচ্ছে
+        \App\Models\Order::whereIn('id', $request->order_ids)->update(['user_id' => $request->user_id]);
+
+        return response()->json(['status' => 'success', 'message' => 'Orders assigned successfully!']);
+    }
+
+    // ৩. Export to CSV
+   public function export(Request $request)
+{
+    try {
+        $ids = explode(',', $request->query('ids', ''));
+        $orders = empty($ids[0]) ? \App\Models\Order::all() : \App\Models\Order::whereIn('id', $ids)->get();
+
+        $response = new \Symfony\Component\HttpFoundation\StreamedResponse(function() use ($orders) {
+            $handle = fopen('php://output', 'w');
+
+            // CSV Header
+            fputcsv($handle, ['Order ID', 'Customer Name', 'Phone', 'Address', 'Status', 'Total Amount', 'Date']);
+
+            // CSV Rows
+            foreach ($orders as $order) {
+                fputcsv($handle, [
+                    $order->order_number ?? $order->id,
+                    $order->name,
+                    $order->phone,
+                    $order->address,
+                    $order->status,
+                    $order->grand_total ?? $order->total_amount,
+                    // created_at ফাঁকা থাকলে যেন ক্র্যাশ না করে তাই চেক দেওয়া হলো
+                    $order->created_at ? $order->created_at->format('Y-m-d H:i') : 'N/A'
+                ]);
+            }
+            fclose($handle);
+        });
+
+        // Headers সেট করা
+        $filename = "orders_export_" . date('Y-m-d') . ".csv";
+        $response->headers->set('Content-Type', 'text/csv');
+        $response->headers->set('Content-Disposition', 'attachment; filename="' . $filename . '"');
+
+        return $response;
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage()
+        ], 500);
+    }
+}
+
+    // ৪. Bulk Print
+    public function print(Request $request)
+    {
+        $request->validate([
+            'order_ids' => 'required|array'
+        ]);
+
+        $orders = \App\Models\Order::with('items')->whereIn('id', $request->order_ids)->get();
+
+        // Print এর জন্য একটি সুন্দর HTML Invoice ডিজাইন তৈরি করা হলো
+        $html = '<!DOCTYPE html><html><head><title>Print Orders</title><style>
+                 body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; padding: 20px; color: #333; }
+                 .invoice { border: 1px solid #e2e8f0; padding: 30px; margin-bottom: 30px; border-radius: 8px; page-break-after: always; }
+                 .invoice:last-child { page-break-after: auto; }
+                 h2 { color: #4f46e5; margin-top: 0; }
+                 table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                 th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; font-size: 14px; }
+                 th { background-color: #f8fafc; color: #64748b; text-transform: uppercase; font-size: 12px; }
+                 .totals { text-align: right; margin-top: 20px; font-size: 18px; font-weight: bold; color: #10b981; }
+                 </style></head><body onload="window.print();">';
+
+        foreach($orders as $order) {
+            $html .= '<div class="invoice">';
+            $html .= '<h2>Order #' . ($order->order_number ?? $order->id) . '</h2>';
+            $html .= '<p><strong>Customer Name:</strong> ' . $order->name . '<br>';
+            $html .= '<strong>Phone:</strong> ' . $order->phone . '<br>';
+            $html .= '<strong>Address:</strong> ' . $order->address . '</p>';
+            $html .= '<table><tr><th>Product</th><th>Quantity</th><th>Price</th><th>Total</th></tr>';
+
+            foreach(($order->items ?? collect()) as $item) {
+                $html .= '<tr><td>' . ($item->product_name ?? $item->name) . '</td>';
+                $html .= '<td>' . $item->quantity . '</td>';
+                $html .= '<td>৳' . $item->price . '</td>';
+                $html .= '<td>৳' . ($item->price * $item->quantity) . '</td></tr>';
+            }
+            $html .= '</table>';
+            $html .= '<div class="totals">Grand Total: ৳' . ($order->grand_total ?? $order->total_amount) . '</div>';
+            $html .= '</div>';
+        }
+
+        $html .= '</body></html>';
+
+        return response()->json(['status' => 'success', 'view' => $html]);
     }
 }
