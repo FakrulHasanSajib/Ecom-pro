@@ -31,7 +31,7 @@ class OrderController extends Controller
             'name' => 'required|string',
             'phone' => 'required|string',
             'items' => 'required|array',
-            'total_amount' => 'required|numeric' // ফ্রন্টএন্ড থেকে total_amount আসবে
+            'total_amount' => 'required|numeric'
         ]);
 
         try {
@@ -41,7 +41,7 @@ class OrderController extends Controller
             if(!empty($request->area)) $fullAddress .= ', ' . $request->area;
             if(!empty($request->district)) $fullAddress .= ', ' . $request->district;
 
-            // 🔥 Order create (total_amount রিমুভ করা হয়েছে, শুধু grand_total এ সেভ হবে)
+            // Order create
             $order = \App\Models\Order::create([
                 'user_id' => auth()->id() ?? null,
                 'order_number' => $orderNumber,
@@ -53,9 +53,10 @@ class OrderController extends Controller
                 'status' => $request->status ?? 'Pending',
                 'sub_total' => $request->sub_total,
                 'shipping_charge' => $request->shipping_charge ?? 0,
-                'grand_total' => $request->total_amount, // ডাটাবেসের grand_total কলামে সেভ হবে
+                'grand_total' => $request->total_amount,
             ]);
 
+            // 🔥 Order Items create (total কলামটি বাদ দেওয়া হয়েছে)
             foreach ($request->items as $item) {
                 DB::table('order_items')->insert([
                     'order_id' => $order->id,
@@ -63,7 +64,7 @@ class OrderController extends Controller
                     'product_name' => $item['name'] ?? $item['product_name'],
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
-                    'total' => $item['price'] * $item['quantity'],
+                    // 'total' লাইনটি মুছে দেওয়া হয়েছে
                 ]);
             }
 
@@ -100,14 +101,14 @@ class OrderController extends Controller
         return response()->json(['status' => 'success', 'data' => $order]);
     }
 
-    // 🔥 Order update korar jnno
+    // Order update korar jnno
     public function update(Request $request, $id)
     {
         $request->validate([
             'name' => 'required|string',
             'phone' => 'required|string',
             'items' => 'required|array',
-            'total_amount' => 'required|numeric' // ফ্রন্টএন্ড থেকে total_amount আসবে
+            'total_amount' => 'required|numeric'
         ]);
 
         try {
@@ -117,7 +118,7 @@ class OrderController extends Controller
             if(!empty($request->area)) $fullAddress .= ', ' . $request->area;
             if(!empty($request->district)) $fullAddress .= ', ' . $request->district;
 
-            // Basic details update (🔥 total_amount রিমুভ করা হয়েছে)
+            // Basic details update
             $order->update([
                 'name' => $request->name,
                 'phone' => $request->phone,
@@ -126,12 +127,13 @@ class OrderController extends Controller
                 'status' => $request->status ?? $order->status,
                 'sub_total' => $request->sub_total,
                 'shipping_charge' => $request->shipping_charge ?? 0,
-                'grand_total' => $request->total_amount, // ডাটাবেসের grand_total কলামে সেভ হবে
+                'grand_total' => $request->total_amount,
             ]);
 
             // Old items delete kore notun gulo insert kora
             DB::table('order_items')->where('order_id', $order->id)->delete();
 
+            // 🔥 (total কলামটি বাদ দেওয়া হয়েছে)
             foreach ($request->items as $item) {
                 DB::table('order_items')->insert([
                     'order_id' => $order->id,
@@ -139,7 +141,7 @@ class OrderController extends Controller
                     'product_name' => $item['name'] ?? $item['product_name'],
                     'quantity' => $item['quantity'],
                     'price' => $item['price'],
-                    'total' => $item['price'] * $item['quantity'],
+                    // 'total' লাইনটি মুছে দেওয়া হয়েছে
                 ]);
             }
 
