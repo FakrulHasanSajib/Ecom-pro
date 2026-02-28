@@ -16,6 +16,8 @@ import AdminOrderShow from './Pages/Admin/Orders/Show.vue';
 // 🔥 নতুন দুটি সেটিংস পেজ ইম্পোর্ট করা হলো
 import AdminApiIntegration from './Pages/Admin/ApiIntegration/Index.vue';
 import AdminSiteSettings from './Pages/Admin/SiteSettings/Index.vue';
+import AdminMedia from './Pages/Admin/Media/Index.vue';
+import AdminBanners from './Pages/Admin/Sliders/Index.vue';
 
 // ==========================================
 // ২. ফ্রন্টএন্ড/কাস্টমার পেজ ইমপোর্টস
@@ -102,6 +104,16 @@ const routes = [
         component: ProductCreate,
         props: true
     },
+    {
+    path: '/admin/banners',
+    name: 'admin.banners',
+    component: AdminBanners
+},
+{
+    path: '/admin/media',
+    name: 'admin.media',
+    component: AdminMedia
+},
 
     // 🔥 নতুন সেটিংস রাউটস
     {

@@ -9,101 +9,64 @@ use Illuminate\Support\Facades\Storage;
 
 class SliderController extends Controller
 {
-    /**
-     * PUBLIC API: ল্যান্ডিং পেজের জন্য একটিভ স্লাইডারগুলো দিবে
-     */
     public function getActiveSliders()
     {
-        $sliders = Slider::where('status', true)
-            ->orderBy('serial', 'asc')
-            ->get()
-            ->map(function ($slider) {
-                return [
-                    'id' => $slider->id,
-                    'title' => $slider->title,
-                    'description' => $slider->short_description,
-                    'image_url' => asset('storage/' . $slider->image),
-                    'link' => $slider->link
-                ];
-            });
-
+        $sliders = Slider::where('status', true)->orderBy('serial', 'asc')->get()->map(function ($slider) {
+            return [
+                'id' => $slider->id,
+                'title' => $slider->title,
+                'category_name' => $slider->category_name,
+                'description' => $slider->short_description,
+                'image_url' => asset('storage/' . $slider->image),
+                'link' => $slider->link
+            ];
+        });
         return response()->json($sliders);
     }
 
-    /**
-     * ADMIN API: সব স্লাইডার দেখা (List)
-     */
     public function index()
     {
-        return response()->json(Slider::orderBy('serial', 'asc')->get());
+        $sliders = Slider::orderBy('id', 'desc')->get()->map(function ($slider) {
+            $slider->image_url = asset('storage/' . $slider->image);
+            return $slider;
+        });
+        return response()->json($sliders);
     }
 
-    /**
-     * ADMIN API: নতুন স্লাইডার তৈরি করা
-     */
     public function store(Request $request)
     {
+        // গ্যালারি থেকে সরাসরি ইমেজের পাথ আসবে, তাই image কে string হিসেবে ভ্যালিডেট করা হলো
         $request->validate([
-            'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:2048',
-            'title' => 'nullable|string|max:255',
-            'serial' => 'integer',
+            'image' => 'required|string',
+            'category_name' => 'required|string',
+            'title' => 'nullable|string',
             'link' => 'nullable|url'
         ]);
 
-        $path = $request->file('image')->store('sliders', 'public');
-
-        $slider = Slider::create([
+        Slider::create([
+            'category_name' => $request->category_name,
             'title' => $request->title,
-            'short_description' => $request->short_description,
-            'image' => $path,
             'link' => $request->link,
-            'serial' => $request->serial ?? 0,
-            'status' => $request->status ?? true,
+            'image' => $request->image, // গ্যালারির ইমেজ পাথ সরাসরি সেভ হবে
+            'status' => $request->status == 'true' || $request->status == 1 ? 1 : 0,
         ]);
 
-        return response()->json(['message' => 'Slider created successfully', 'data' => $slider]);
+        return response()->json(['message' => 'Banner created successfully']);
     }
 
-    /**
-     * ADMIN API: স্লাইডার আপডেট করা
-     */
-    public function update(Request $request, $id)
+    public function toggleStatus($id)
     {
         $slider = Slider::findOrFail($id);
-
-        $request->validate([
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
-            'title' => 'nullable|string',
-        ]);
-
-        $data = $request->all();
-
-        // নতুন ইমেজ থাকলে আগেরটা ডিলিট করে নতুনটা আপলোড
-        if ($request->hasFile('image')) {
-            if ($slider->image && Storage::disk('public')->exists($slider->image)) {
-                Storage::disk('public')->delete($slider->image);
-            }
-            $data['image'] = $request->file('image')->store('sliders', 'public');
-        }
-
-        $slider->update($data);
-
-        return response()->json(['message' => 'Slider updated successfully', 'data' => $slider]);
+        $slider->status = !$slider->status;
+        $slider->save();
+        return response()->json(['message' => 'Status updated']);
     }
 
-    /**
-     * ADMIN API: স্লাইডার ডিলিট করা
-     */
     public function destroy($id)
     {
         $slider = Slider::findOrFail($id);
-
-        if ($slider->image && Storage::disk('public')->exists($slider->image)) {
-            Storage::disk('public')->delete($slider->image);
-        }
-
+        // গ্যালারির ছবি ডিলিট করব না, শুধু স্লাইডার ডিলিট করব
         $slider->delete();
-
-        return response()->json(['message' => 'Slider deleted successfully']);
+        return response()->json(['message' => 'Banner deleted successfully']);
     }
 }

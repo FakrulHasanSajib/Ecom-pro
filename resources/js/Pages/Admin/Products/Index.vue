@@ -11,15 +11,22 @@ const isLoading = ref(true);
 // --- Fetch Data from API ---
 const fetchProducts = async () => {
     try {
-        // আপনার api.php তে Route::get('/products', ...) আছে
-        const response = await axios.get('/api/admin/products');
+        // ১. লোকাল স্টোরেজ থেকে টোকেন নেওয়া
+        const token = localStorage.getItem('token');
 
-        // ব্যাকএন্ড থেকে আসা ডাটা সেট করা (Data wrapper চেক করা হচ্ছে)
-        productList.value = response.data.data || response.data;
+        // ২. হেডারে টোকেনটি পাঠানো
+        const res = await axios.get('http://127.0.0.1:73/api/admin/products', {
+            headers: {
+                Authorization: `Bearer ${token}`
+            }
+        });
+
+        // 🔥 FIX: products.value এর বদলে productList.value ব্যবহার করা হলো
+        productList.value = res.data.data || res.data;
     } catch (error) {
         console.error("Failed to load products:", error);
-        Swal.fire('Error', 'Failed to load product list', 'error');
     } finally {
+        // 🔥 FIX: ডাটা লোড হওয়ার পর লোডিং স্পিনার বন্ধ করা হলো
         isLoading.value = false;
     }
 };
@@ -43,9 +50,15 @@ const deleteProduct = async (id) => {
 
     if (result.isConfirmed) {
         try {
-            await axios.delete(`/api/admin/products/${id}`);
+            // 🔥 FIX: ডিলিট করার সময়ও টোকেন এবং ফুল URL দেওয়া হলো
+            const token = localStorage.getItem('token');
+            await axios.delete(`http://127.0.0.1:73/api/admin/products/${id}`, {
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
+            });
 
-            // UI থেকে প্রোডাক্ট রিমুভ করা (পেজ রিফ্রেশ ছাড়া)
+            // UI থেকে প্রোডাক্ট রিমুভ করা (পেজ রিফ্রেশ ছাড়া)
             productList.value = productList.value.filter(product => product.id !== id);
 
             Swal.fire('Deleted!', 'Your product has been deleted.', 'success');
@@ -119,7 +132,7 @@ const deleteProduct = async (id) => {
                                 <td class="py-3 px-6 text-center">
                                     <span :class="product.total_stock > 10 ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'"
                                           class="py-1 px-3 rounded-full text-xs font-bold">
-                                        {{ product.total_stock }}
+                                        {{ product.total_stock || 0 }}
                                     </span>
                                 </td>
 

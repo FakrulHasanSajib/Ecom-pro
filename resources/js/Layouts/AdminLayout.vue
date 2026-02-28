@@ -146,6 +146,15 @@ const logout = async () => {
                     <span class="text-xl w-6 text-center">🏷️</span>
                     <span v-if="isSidebarOpen" class="ml-3 font-medium">Order Statuses</span>
                 </router-link>
+                <router-link to="/admin/banners" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="route.path === '/admin/banners' ? 'bg-indigo-600' : ''">
+    <span class="text-xl w-6 text-center">🖼️</span>
+    <span v-if="isSidebarOpen" class="ml-3 font-medium">Banners</span>
+</router-link>
+
+<router-link to="/admin/media" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="route.path === '/admin/media' ? 'bg-indigo-600' : ''">
+    <span class="text-xl w-6 text-center">📸</span>
+    <span v-if="isSidebarOpen" class="ml-3 font-medium">Photo Gallery</span>
+</router-link>
 
                <router-link to="/admin/api-integration" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="route.path === '/admin/api-integration' ? 'bg-indigo-600' : ''">
                     <span class="text-xl w-6 text-center">🔌</span>
@@ -156,6 +165,7 @@ const logout = async () => {
                     <span class="text-xl w-6 text-center">⚙️</span>
                     <span v-if="isSidebarOpen" class="ml-3 font-medium">Site Settings</span>
                 </router-link>
+
             </nav>
         </aside>
 

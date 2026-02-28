@@ -129,4 +129,5 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::get('/order-statuses', [\App\Http\Controllers\Admin\OrderStatusController::class, 'index']);
     Route::post('/order-statuses', [\App\Http\Controllers\Admin\OrderStatusController::class, 'store']);
     Route::delete('/order-statuses/{id}', [\App\Http\Controllers\Admin\OrderStatusController::class, 'destroy']);
+    Route::post('/sliders/{id}/toggle-status', [\App\Http\Controllers\Admin\SliderController::class, 'toggleStatus']);
 });
