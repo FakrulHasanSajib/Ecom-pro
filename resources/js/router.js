@@ -13,7 +13,9 @@ import AdminOrderStatus from './Pages/Admin/OrderStatuses/Index.vue';
 import AdminOrderCreate from './Pages/Admin/Orders/Create.vue';
 import AdminOrderEdit from './Pages/Admin/Orders/Edit.vue';
 import AdminOrderShow from './Pages/Admin/Orders/Show.vue';
-import AdminSettings from './Pages/Admin/Settings/Index.vue'; //
+// 🔥 নতুন দুটি সেটিংস পেজ ইম্পোর্ট করা হলো
+import AdminApiIntegration from './Pages/Admin/ApiIntegration/Index.vue';
+import AdminSiteSettings from './Pages/Admin/SiteSettings/Index.vue';
 
 // ==========================================
 // ২. ফ্রন্টএন্ড/কাস্টমার পেজ ইমপোর্টস
@@ -100,11 +102,19 @@ const routes = [
         component: ProductCreate,
         props: true
     },
+
+    // 🔥 নতুন সেটিংস রাউটস
     {
-        path: '/admin/settings',
-        name: 'admin.settings',
-        component: AdminSettings
+        path: '/admin/api-integration',
+        name: 'admin.api_integration',
+        component: AdminApiIntegration
     },
+    {
+        path: '/admin/site-settings',
+        name: 'admin.site_settings',
+        component: AdminSiteSettings
+    },
+
     {
         path: '/admin/orders',
         name: 'admin.orders.index',
