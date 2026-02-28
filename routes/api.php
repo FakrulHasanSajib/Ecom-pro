@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\SliderController;
 use App\Http\Controllers\Admin\MediaController;
 use App\Http\Controllers\Admin\BrandController;
 
+
 // --- Public/Customer Controllers ---
 use App\Http\Controllers\Admin\ProductController as PublicProductController;
 use App\Http\Controllers\Api\OrderController;
@@ -130,4 +131,8 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::post('/order-statuses', [\App\Http\Controllers\Admin\OrderStatusController::class, 'store']);
     Route::delete('/order-statuses/{id}', [\App\Http\Controllers\Admin\OrderStatusController::class, 'destroy']);
     Route::post('/sliders/{id}/toggle-status', [\App\Http\Controllers\Admin\SliderController::class, 'toggleStatus']);
+    // Admin Routes er vitore add korun
+Route::get('/media', [MediaController::class, 'index']);
+Route::post('/media', [MediaController::class, 'store']);
+Route::delete('/media/{id}', [MediaController::class, 'destroy']);
 });

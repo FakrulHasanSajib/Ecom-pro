@@ -21,6 +21,7 @@ const fetchMedia = async () => {
 };
 
 // একসাথে একাধিক ছবি আপলোডের লজিক
+// একসাথে একাধিক ছবি আপলোডের লজিক (আপডেট করা হয়েছে)
 const handleUpload = async (e) => {
     isDragging.value = false;
     const files = Array.from(e.target.files || e.dataTransfer.files);
@@ -29,30 +30,26 @@ const handleUpload = async (e) => {
     isUploading.value = true;
     const token = localStorage.getItem('token');
 
-    let successCount = 0;
-
-    // ছবিগুলো এক এক করে লুপের মাধ্যমে আপলোড হবে
     for (const file of files) {
         let formData = new FormData();
-        formData.append('image', file);
+
+        // 🔥 এই লাইনটি সবচেয়ে গুরুত্বপূর্ণ: নাম অবশ্যই 'file' হবে
+        formData.append('file', file);
+
         try {
-            await axios.post(API_URL, formData, { headers: { Authorization: `Bearer ${token}` } });
-            successCount++;
+            await axios.post(API_URL, formData, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
         } catch (error) {
-            console.error('Upload failed for', file.name);
+            console.error('Upload error:', error.response?.data);
         }
     }
-
-    if (successCount > 0) {
-        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `${successCount} Image(s) Uploaded!`, showConfirmButton: false, timer: 1500 });
-        fetchMedia();
-    } else {
-        Swal.fire('Error', 'Upload failed!', 'error');
-    }
-
+    // ... বাকি কোড
+    fetchMedia();
     isUploading.value = false;
-    // ইনপুট ক্লিয়ার করা
-    if(e.target.type === 'file') e.target.value = '';
 };
 
 // ছবি ডিলিট

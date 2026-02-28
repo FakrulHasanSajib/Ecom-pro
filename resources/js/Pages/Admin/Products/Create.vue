@@ -184,6 +184,15 @@ const openGallery = (target, index = null) => {
     showMediaManager.value = true;
 };
 
+const mediaFiles = ref([]);
+const fetchMedia = async () => {
+    const token = localStorage.getItem('token');
+    const res = await axios.get('http://127.0.0.1:73/api/admin/media', {
+        headers: { Authorization: `Bearer ${token}` }
+    });
+    mediaFiles.value = res.data.data;
+};
+
 const handleMediaSelect = (url) => {
     if (mediaTarget.value === 'thumbnail') {
         form.value.thumbnail = url;
