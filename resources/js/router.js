@@ -7,12 +7,13 @@ import Dashboard from './Pages/Admin/Dashboard.vue';
 import CategoryIndex from './Pages/Admin/Categories/Index.vue';
 import ProductIndex from './Pages/Admin/Products/Index.vue';
 import ProductCreate from './Pages/Admin/Products/Create.vue';
-import AdminLogin from './Pages/Auth/Login.vue'; // নাম পরিবর্তন করে AdminLogin করা হলো
+import AdminLogin from './Pages/Auth/Login.vue';
 import AdminOrderIndex from './Pages/Admin/Orders/Index.vue';
 import AdminOrderStatus from './Pages/Admin/OrderStatuses/Index.vue';
 import AdminOrderCreate from './Pages/Admin/Orders/Create.vue';
 import AdminOrderEdit from './Pages/Admin/Orders/Edit.vue';
 import AdminOrderShow from './Pages/Admin/Orders/Show.vue';
+import AdminSettings from './Pages/Admin/Settings/Index.vue'; //
 
 // ==========================================
 // ২. ফ্রন্টএন্ড/কাস্টমার পেজ ইমপোর্টস
@@ -40,12 +41,6 @@ const routes = [
         component: ProductDetails
     },
     {
-    path: '/admin/orders/:id', // 🔥 View বা Show রাউট
-    name: 'admin.orders.show',
-    component: AdminOrderShow,
-    props: true
-},
-    {
         path: '/checkout',
         name: 'Checkout',
         component: Checkout
@@ -63,12 +58,12 @@ const routes = [
     {
         path: '/login',
         name: 'CustomerLogin',
-        component: CustomerLogin // কাস্টমার লগিন পেজ
+        component: CustomerLogin
     },
     {
         path: '/dashboard',
         name: 'CustomerDashboard',
-        component: CustomerDashboard // কাস্টমার ড্যাশবোর্ড পেজ
+        component: CustomerDashboard
     },
 
     // ==========================================
@@ -77,12 +72,12 @@ const routes = [
     {
         path: '/admin/login',
         name: 'AdminLogin',
-        component: AdminLogin // অ্যাডমিন লগিন পেজ
+        component: AdminLogin
     },
     {
         path: '/admin/dashboard',
         name: 'admin.dashboard',
-        component: Dashboard // অ্যাডমিন ড্যাশবোর্ড
+        component: Dashboard
     },
     {
         path: '/admin/categories',
@@ -105,36 +100,47 @@ const routes = [
         component: ProductCreate,
         props: true
     },
+    {
+        path: '/admin/settings',
+        name: 'admin.settings',
+        component: AdminSettings
+    },
+    {
+        path: '/admin/orders',
+        name: 'admin.orders.index',
+        component: AdminOrderIndex
+    },
+    {
+        path: '/admin/orders/create',
+        name: 'admin.orders.create',
+        component: AdminOrderCreate
+    },
+    {
+        path: '/admin/orders/:id',
+        name: 'admin.orders.show',
+        component: AdminOrderShow,
+        props: true
+    },
+    {
+        path: '/admin/orders/:id/edit',
+        name: 'admin.orders.edit',
+        component: AdminOrderEdit,
+        props: true
+    },
+    {
+        path: '/admin/order-statuses',
+        name: 'admin.order-statuses.index',
+        component: AdminOrderStatus
+    },
 
     // ==========================================
-    // --- 404 Not Found (এটি সবসময় একদম শেষে থাকতে হবে) ---
+    // --- 404 Not Found (এটি সবসময় একদম শেষে থাকতে হবে) ---
     // ==========================================
     {
         path: '/:pathMatch(.*)*',
         name: 'NotFound',
         component: { template: '<div class="p-10 text-center text-red-500"><h1>404 - Page Not Found</h1></div>' }
-    },
-    {
-    path: '/admin/orders',
-    name: 'admin.orders.index',
-    component: AdminOrderIndex
-},
-{
-    path: '/admin/order-statuses',
-    name: 'admin.order-statuses.index',
-    component: AdminOrderStatus
-},
-{
-    path: '/admin/orders/create',
-    name: 'admin.orders.create',
-    component: AdminOrderCreate
-},
-{
-    path: '/admin/orders/:id/edit',
-    name: 'admin.orders.edit',
-    component: AdminOrderEdit,
-    props: true
-},
+    }
 ];
 
 const router = createRouter({
