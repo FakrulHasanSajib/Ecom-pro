@@ -32,6 +32,20 @@ onMounted(async () => {
         console.error("Failed to fetch order statuses for sidebar");
     }
 });
+const isBannerMenuOpen = ref(false);
+
+// onMounted এর ভেতরে এটি যোগ করুন (যাতে পেজ রিলোডে মেনু খোলা থাকে):
+if (route.path.startsWith('/admin/banner')) isBannerMenuOpen.value = true;
+
+// এই ফাংশনটি যোগ করুন:
+const toggleBannerMenu = () => {
+    if (!isSidebarOpen.value) {
+        isSidebarOpen.value = true;
+        isBannerMenuOpen.value = true;
+    } else {
+        isBannerMenuOpen.value = !isBannerMenuOpen.value;
+    }
+};
 
 const toggleProductMenu = () => {
     if (!isSidebarOpen.value) {
@@ -161,10 +175,30 @@ const logout = async () => {
                     <span v-if="isSidebarOpen" class="ml-3 font-medium">Order Statuses</span>
                 </router-link>
 
-                <router-link to="/admin/banners" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="route.path.startsWith('/admin/banners') ? 'bg-indigo-600 shadow-md' : ''">
-                    <span class="text-xl w-6 text-center">🖼️</span>
-                    <span v-if="isSidebarOpen" class="ml-3 font-medium">Banners</span>
-                </router-link>
+               <div>
+    <button @click="toggleBannerMenu" class="w-full flex items-center justify-between p-3 hover:bg-indigo-600 rounded-lg transition focus:outline-none" :class="isBannerMenuOpen || route.path.startsWith('/admin/banner') ? 'bg-slate-800' : ''">
+        <div class="flex items-center">
+            <span class="text-xl w-6 text-center">🪧</span>
+            <span v-if="isSidebarOpen" class="ml-3 font-medium">Banner & Ads</span>
+        </div>
+        <svg v-if="isSidebarOpen" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-200" :class="isBannerMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+        </svg>
+    </button>
+
+    <div v-show="isSidebarOpen && isBannerMenuOpen" class="mt-1 space-y-1 bg-slate-800/40 rounded-lg overflow-hidden py-1">
+        <router-link to="/admin/banner-categories"
+            class="flex items-center pl-12 pr-4 py-2.5 text-sm transition"
+            :class="route.path === '/admin/banner-categories' ? 'text-white bg-[#2563eb] font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
+            Banner Category
+        </router-link>
+        <router-link to="/admin/banners"
+            class="flex items-center pl-12 pr-4 py-2.5 text-sm transition"
+            :class="route.path === '/admin/banners' ? 'text-white bg-[#2563eb] font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
+            Banner & Ads
+        </router-link>
+    </div>
+</div>
 
                 <router-link to="/admin/media" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="route.path.startsWith('/admin/media') ? 'bg-indigo-600 shadow-md' : ''">
                     <span class="text-xl w-6 text-center">📸</span>

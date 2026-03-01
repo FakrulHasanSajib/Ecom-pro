@@ -18,6 +18,7 @@ import AdminApiIntegration from './Pages/Admin/ApiIntegration/Index.vue';
 import AdminSiteSettings from './Pages/Admin/SiteSettings/Index.vue';
 import AdminMedia from './Pages/Admin/Media/Index.vue';
 import AdminBanners from './Pages/Admin/Sliders/Index.vue';
+import BannerCategories from './Pages/Admin/Banners/Categories.vue';
 
 // ==========================================
 // ২. ফ্রন্টএন্ড/কাস্টমার পেজ ইমপোর্টস
@@ -113,6 +114,11 @@ const routes = [
     path: '/admin/media',
     name: 'admin.media',
     component: AdminMedia
+},
+{
+    path: '/admin/banner-categories',
+    name: 'admin.bannerCategories',
+    component: BannerCategories
 },
 
     // 🔥 নতুন সেটিংস রাউটস

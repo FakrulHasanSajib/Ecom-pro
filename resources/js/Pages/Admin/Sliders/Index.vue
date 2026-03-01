@@ -4,10 +4,13 @@ import axios from 'axios';
 import Swal from 'sweetalert2';
 
 const API_URL = 'http://127.0.0.1:73/api/admin/sliders';
-const MEDIA_API_URL = 'http://127.0.0.1:73/api/admin/media'; // আপনার গ্যালারি এপিআই
+const MEDIA_API_URL = 'http://127.0.0.1:73/api/admin/media'; // গ্যালারি এপিআই
+const CAT_API_URL = 'http://127.0.0.1:73/api/admin/banner-categories/active'; // ডাইনামিক ক্যাটাগরি এপিআই
 
 const sliders = ref([]);
 const mediaFiles = ref([]);
+const dynamicCategories = ref([]); // ডাইনামিক ক্যাটাগরির জন্য
+
 const loading = ref(true);
 const mediaLoading = ref(false);
 const searchQuery = ref('');
@@ -19,8 +22,7 @@ const showGalleryModal = ref(false);
 const form = ref({ category_name: '', title: '', link: '', image_path: '', status: true });
 const imagePreview = ref(null);
 
-const bannerCategories = ['Free Shipping', 'Home 4 Banner', 'Home Banner', 'Footer Top Ads', 'Slider Bottom Ads', 'Slider'];
-
+// ১. ব্যানারগুলো লোড করা
 const fetchSliders = async () => {
     try {
         const token = localStorage.getItem('token');
@@ -29,6 +31,16 @@ const fetchSliders = async () => {
     } catch (error) { console.error(error); } finally { loading.value = false; }
 };
 
+// ২. ডাটাবেস থেকে ডাইনামিক ক্যাটাগরিগুলো লোড করা
+const fetchDynamicCategories = async () => {
+    try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(CAT_API_URL, { headers: { Authorization: `Bearer ${token}` } });
+        dynamicCategories.value = res.data;
+    } catch (error) { console.error("Failed to load categories"); }
+};
+
+// ৩. গ্যালারির ছবি লোড করা
 const fetchMedia = async () => {
     mediaLoading.value = true;
     try {
@@ -55,7 +67,7 @@ const openGallery = () => {
 };
 
 const selectImage = (media) => {
-    form.value.image_path = media.path || media.file_path; // আপনার মিডিয়া টেবিলের পাথ কলামের নাম
+    form.value.image_path = media.path || media.file_path; // আপনার মিডিয়া টেবিলের পাথ কলামের নাম
     imagePreview.value = media.url || media.file_url || `http://127.0.0.1:73/storage/${form.value.image_path}`;
     showGalleryModal.value = false;
 };
@@ -65,7 +77,6 @@ const saveSlider = async () => {
         return Swal.fire('Error', 'Image and Category are required!', 'warning');
     }
 
-    // যেহেতু এখন শুধু টেক্সট পাঠাচ্ছি, FormData এর বদলে সরাসরি JSON পাঠাব
     const payload = {
         category_name: form.value.category_name,
         title: form.value.title,
@@ -102,7 +113,10 @@ const deleteSlider = async (id) => {
     }
 };
 
-onMounted(() => fetchSliders());
+onMounted(() => {
+    fetchSliders();
+    fetchDynamicCategories(); // পেজ লোড হলেই ক্যাটাগরিগুলো কল হবে
+});
 </script>
 
 <template>
@@ -180,7 +194,7 @@ onMounted(() => fetchSliders());
                         <label class="block text-sm text-slate-600 mb-2">Category *</label>
                         <select v-model="form.category_name" class="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-indigo-500 text-sm">
                             <option value="">Select Category</option>
-                            <option v-for="cat in bannerCategories" :key="cat" :value="cat">{{ cat }}</option>
+                            <option v-for="cat in dynamicCategories" :key="cat.id" :value="cat.name">{{ cat.name }}</option>
                         </select>
                     </div>
 

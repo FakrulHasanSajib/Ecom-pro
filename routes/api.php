@@ -110,6 +110,12 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::get('/settings', [SettingController::class, 'index']);
     Route::post('/settings', [SettingController::class, 'update']);
 
+    Route::get('/banner-categories', [\App\Http\Controllers\Admin\BannerCategoryController::class, 'index']);
+Route::get('/banner-categories/active', [\App\Http\Controllers\Admin\BannerCategoryController::class, 'getActive']);
+Route::post('/banner-categories', [\App\Http\Controllers\Admin\BannerCategoryController::class, 'store']);
+Route::post('/banner-categories/{id}/toggle-status', [\App\Http\Controllers\Admin\BannerCategoryController::class, 'toggleStatus']);
+Route::delete('/banner-categories/{id}', [\App\Http\Controllers\Admin\BannerCategoryController::class, 'destroy']);
+
 
     // --- Order Management (Admin) ---
     // 🔥 ১. প্রথমে Static Routes এবং Bulk Action-গুলো রাখতে হবে
