@@ -1,218 +1,227 @@
 <script setup>
 import { ref, onMounted, watch, computed } from 'vue';
-import { useRouter, useRoute } from 'vue-router'; // Inertia বাদ দিয়ে Vue Router
+import { useRouter, useRoute } from 'vue-router';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
-import MediaManager from '@/Components/MediaManager.vue';
 
 // --- Router Setup ---
 const router = useRouter();
 const route = useRoute();
 
-// --- State Variables ---
-// URL থেকে ID চেক করা হচ্ছে (Edit Mode এর জন্য)
 const productId = computed(() => route.params.id);
 const isEditMode = computed(() => !!productId.value);
 
 const categories = ref([]);
 const brands = ref([]);
+
+// 🔥 Advanced Gallery States (আপনার ছবি অনুযায়ী)
 const showMediaManager = ref(false);
+const activeModalTab = ref('select'); // 'select' or 'upload'
 const mediaTarget = ref('');
 const testimonialIndex = ref(null);
+const mediaFiles = ref([]);
+const mediaLoading = ref(false);
+const searchQuery = ref('');
+const selectedMedia = ref([]);
+const isUploading = ref(false);
+const isDragging = ref(false);
+
 const isSubmitting = ref(false);
 const isGeneratingSeo = ref(false);
 const tagInput = ref('');
-const isLoadingData = ref(false); // ডাটা লোডিং এর জন্য
+const isLoadingData = ref(false);
 
-// --- Form Initialization (Reactive Object) ---
+// --- Form Initialization ---
 const form = ref({
-    name: '',
-    slug: '',
-    category_id: '',
-    brand_id: '',
-    unit: 'Piece',
-    sku: '',
-    stock: 100,
-    purchase_price: '',
-    wholesale_price: '',
-    reseller_price: '',
-    base_price: '',
-    offer_price: '',
-    enable_variants: false,
-    colors: [],
-    sizes: [],
-    free_shipping: false,
-    shipping_inside_dhaka: 80, // ডিফল্ট (API কল হওয়ার পর আপডেট হবে)
-    shipping_outside_dhaka: 150, // ডিফল্ট (API কল হওয়ার পর আপডেট হবে)
-    thumbnail: null,
-    images: [],
-    video_link: '',
-    description: '',
-    tags: [],
-    meta_title: '',
-    meta_description: '',
-    testimonials: []
+    name: '', slug: '', category_id: '', brand_id: '', unit: 'Piece',
+    sku: '', stock: 100, purchase_price: '', wholesale_price: '',
+    reseller_price: '', base_price: '', offer_price: '',
+    enable_variants: false, colors: [], sizes: [], free_shipping: false,
+    shipping_inside_dhaka: 80, shipping_outside_dhaka: 150,
+    thumbnail: null, images: [], video_link: '', description: '',
+    tags: [], meta_title: '', meta_description: '', testimonials: []
 });
 
-// --- Helpers: Safe Parsers ---
+// --- Helpers ---
 const safeJsonParse = (data) => {
     if (!data) return [];
     if (Array.isArray(data)) return data;
     try { return JSON.parse(data); } catch (e) { return []; }
 };
-
 const safeTagsParse = (data) => {
     if (!data) return [];
     if (Array.isArray(data)) return data;
-    if (typeof data === 'string') return data.split(',').map(tag => tag.trim()).filter(tag => tag !== "");
+    if (typeof data === 'string') return data.split(',').map(t => t.trim()).filter(t => t !== "");
     return [];
 };
 
-// --- Initialization (API Calling) ---
+// --- API Calling ---
 onMounted(async () => {
-    // ১. ক্যাটাগরি, ব্র্যান্ড এবং ডায়নামিক শিপিং ডাটা লোড করা
+    const token = localStorage.getItem('token');
+    const headers = { Authorization: `Bearer ${token}` };
+
     try {
         const [catRes, brandRes] = await Promise.all([
-            axios.get('/api/admin/list-categories'),
-            axios.get('/api/admin/list-brands')
+            axios.get('http://127.0.0.1:73/api/admin/list-categories', { headers }),
+            axios.get('http://127.0.0.1:73/api/admin/list-brands', { headers })
         ]);
         categories.value = catRes.data;
         brands.value = brandRes.data;
 
-        // ✅ Create Mode হলে Settings টেবিল থেকে ডায়নামিক শিপিং চার্জ আনা
         if (!isEditMode.value) {
             try {
-                const shipRes = await axios.get('/api/admin/shipping-defaults');
+                const shipRes = await axios.get('http://127.0.0.1:73/api/admin/shipping-defaults', { headers });
                 form.value.shipping_inside_dhaka = parseInt(shipRes.data.inside) || 80;
                 form.value.shipping_outside_dhaka = parseInt(shipRes.data.outside) || 150;
-            } catch (shipErr) {
-                console.warn("Shipping defaults could not be loaded, using fallbacks.");
-            }
+            } catch (e) {}
         }
-
     } catch (error) {
-        console.error("Dependency loading failed:", error);
+        if (error.response?.status === 401) router.push('/login');
     }
 
-    // ২. যদি এডিট মোড হয়, তাহলে প্রোডাক্টের নিজস্ব ডাটা আনা
     if (isEditMode.value) {
         isLoadingData.value = true;
         try {
-            const response = await axios.get(`/api/admin/products/${productId.value}`);
-            const p = response.data.data || response.data; // ডাটা স্ট্রাকচার হ্যান্ডলিং
-
-            // ফর্মে ডাটা সেট করা
+            const response = await axios.get(`http://127.0.0.1:73/api/admin/products/${productId.value}`, { headers });
+            const p = response.data.data || response.data;
             form.value = {
-                ...form.value, // ডিফল্ট ভ্যালু রাখা
-                ...p, // API থেকে আসা ডাটা ওভাররাইড করা
-                category_id: p.category_id || '',
-                brand_id: p.brand_id || '',
-                enable_variants: !!p.enable_variants, // 1/0 কে boolean এ কনভার্ট
-                free_shipping: !!p.free_shipping,
-
-                // JSON ডাটাগুলো পার্স করা
-                colors: safeJsonParse(p.colors),
-                sizes: safeJsonParse(p.sizes),
-                images: safeJsonParse(p.images),
-                testimonials: safeJsonParse(p.testimonials),
-                tags: safeTagsParse(p.tags),
-
-                // নাম্বার ফরম্যাট নিশ্চিত করা
-                stock: p.total_stock || p.stock,
-                purchase_price: p.purchase_price,
-                base_price: p.base_price,
-                shipping_inside_dhaka: p.shipping_inside_dhaka,
-                shipping_outside_dhaka: p.shipping_outside_dhaka
+                ...form.value, ...p,
+                category_id: p.category_id || '', brand_id: p.brand_id || '',
+                enable_variants: !!p.enable_variants, free_shipping: !!p.free_shipping,
+                colors: safeJsonParse(p.colors), sizes: safeJsonParse(p.sizes),
+                images: safeJsonParse(p.images), testimonials: safeJsonParse(p.testimonials),
+                tags: safeTagsParse(p.tags), stock: p.total_stock || p.stock,
+                purchase_price: p.purchase_price, base_price: p.base_price,
+                shipping_inside_dhaka: p.shipping_inside_dhaka, shipping_outside_dhaka: p.shipping_outside_dhaka
             };
         } catch (error) {
             Swal.fire('Error', 'Failed to load product data', 'error');
             router.push('/admin/products');
-        } finally {
-            isLoadingData.value = false;
-        }
+        } finally { isLoadingData.value = false; }
     }
 });
 
-// --- Auto Slug (Only for Create Mode) ---
 watch(() => form.value.name, (newVal) => {
     if (!isEditMode.value) {
-        form.value.slug = newVal.toLowerCase().trim()
-            .replace(/[^\w\s-]/g, '')
-            .replace(/[\s_-]+/g, '-')
-            .replace(/^-+|-+$/g, '');
+        form.value.slug = newVal.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-').replace(/^-+|-+$/g, '');
     }
 });
 
-// --- AI SEO Logic ---
 const generateSeo = async () => {
     if (!form.value.name) return Swal.fire('Warning', 'Please enter Product Name first', 'warning');
-
     isGeneratingSeo.value = true;
     try {
-        const response = await axios.post('/api/admin/products/generate-seo', {
-            name: form.value.name,
-            description: form.value.description
-        });
-        const data = response.data;
+        const token = localStorage.getItem('token');
+        const res = await axios.post('http://127.0.0.1:73/api/admin/products/generate-seo', {
+            name: form.value.name, description: form.value.description
+        }, { headers: { Authorization: `Bearer ${token}` } });
 
-        form.value.meta_title = data.meta_title || form.value.name;
-        form.value.meta_description = data.meta_description || '';
-
-        if (data.tags) {
-            const newTags = safeTagsParse(data.tags);
-            form.value.tags = [...new Set([...form.value.tags, ...newTags])];
-        }
-
-        Swal.fire({
-            icon: 'success', title: 'SEO Generated',
-            toast: true, position: 'top-end', showConfirmButton: false, timer: 2000
-        });
-    } catch (error) {
-        Swal.fire('Error', 'AI generation failed. Check API Key.', 'error');
-    } finally {
-        isGeneratingSeo.value = false;
-    }
+        form.value.meta_title = res.data.meta_title || form.value.name;
+        form.value.meta_description = res.data.meta_description || '';
+        if (res.data.tags) form.value.tags = [...new Set([...form.value.tags, ...safeTagsParse(res.data.tags)])];
+        Swal.fire({ icon: 'success', title: 'SEO Generated', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+    } catch (error) {} finally { isGeneratingSeo.value = false; }
 };
 
-// --- Gallery & Media Logic ---
+// ==========================================
+// 🔥 Advanced Media Gallery Logic 🔥
+// ==========================================
+const fetchMedia = async () => {
+    mediaLoading.value = true;
+    try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get('http://127.0.0.1:73/api/admin/media', { headers: { Authorization: `Bearer ${token}` } });
+        mediaFiles.value = res.data.data || res.data;
+    } catch (error) { console.error("Gallery failed to load", error); } finally { mediaLoading.value = false; }
+};
+
+const filteredMedia = computed(() => {
+    if (!searchQuery.value) return mediaFiles.value;
+    return mediaFiles.value.filter(m => m.file_name?.toLowerCase().includes(searchQuery.value.toLowerCase()));
+});
+
 const openGallery = (target, index = null) => {
     mediaTarget.value = target;
     testimonialIndex.value = index;
+    activeModalTab.value = 'select';
+    selectedMedia.value = [];
+    searchQuery.value = '';
     showMediaManager.value = true;
+    fetchMedia();
 };
 
-const mediaFiles = ref([]);
-const fetchMedia = async () => {
-    const token = localStorage.getItem('token');
-    const res = await axios.get('http://127.0.0.1:73/api/admin/media', {
-        headers: { Authorization: `Bearer ${token}` }
-    });
-    mediaFiles.value = res.data.data;
-};
-
-const handleMediaSelect = (url) => {
-    if (mediaTarget.value === 'thumbnail') {
-        form.value.thumbnail = url;
-    } else if (mediaTarget.value === 'gallery') {
-        if (!form.value.images.includes(url)) form.value.images.push(url);
-    } else if (mediaTarget.value === 'testimonial' && testimonialIndex.value !== null) {
-        form.value.testimonials[testimonialIndex.value].image = url;
-    }
+const closeGallery = () => {
     showMediaManager.value = false;
+    selectedMedia.value = [];
 };
 
-// --- Array Manipulations ---
+const toggleMediaSelection = (url) => {
+    if (mediaTarget.value === 'thumbnail' || mediaTarget.value === 'testimonial') {
+        selectedMedia.value = [url]; // Single Selection
+    } else {
+        // Multiple Selection for Gallery
+        if (selectedMedia.value.includes(url)) {
+            selectedMedia.value = selectedMedia.value.filter(u => u !== url);
+        } else {
+            selectedMedia.value.push(url);
+        }
+    }
+};
+
+const confirmSelection = () => {
+    if (selectedMedia.value.length === 0) return Swal.fire('Warning', 'Please select an image', 'warning');
+
+    if (mediaTarget.value === 'thumbnail') {
+        form.value.thumbnail = selectedMedia.value[0];
+    } else if (mediaTarget.value === 'testimonial' && testimonialIndex.value !== null) {
+        form.value.testimonials[testimonialIndex.value].image = selectedMedia.value[0];
+    } else if (mediaTarget.value === 'gallery') {
+        selectedMedia.value.forEach(url => {
+            if (!form.value.images.includes(url)) form.value.images.push(url);
+        });
+    }
+    closeGallery();
+};
+
+const handleUpload = async (e) => {
+    isDragging.value = false;
+    const files = Array.from(e.target.files || e.dataTransfer.files);
+    if (!files.length) return;
+
+    isUploading.value = true;
+    const token = localStorage.getItem('token');
+    let successCount = 0;
+
+    for (const file of files) {
+        let formData = new FormData();
+        formData.append('file', file);
+        try {
+            await axios.post('http://127.0.0.1:73/api/admin/media', formData, {
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
+            });
+            successCount++;
+        } catch (error) { console.error('Upload Error:', error); }
+    }
+
+    if (successCount > 0) {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `${successCount} Image(s) Uploaded!`, showConfirmButton: false, timer: 1500 });
+        await fetchMedia();
+        activeModalTab.value = 'select'; // Switch to select tab to see uploaded images
+    } else {
+        Swal.fire('Error', 'Upload failed', 'error');
+    }
+    isUploading.value = false;
+    if(e.target.type === 'file') e.target.value = '';
+};
+
+// ==========================================
+
 const addTestimonial = () => form.value.testimonials.push({ type: 'text', content: '', image: '' });
 const removeTestimonial = (index) => form.value.testimonials.splice(index, 1);
-const addTag = () => {
-    if(tagInput.value) {
-        form.value.tags.push(tagInput.value);
-        tagInput.value = '';
-    }
-};
+const addTag = () => { if(tagInput.value) { form.value.tags.push(tagInput.value); tagInput.value = ''; } };
 
 const availableSizes = ['S', 'M', 'L', 'XL', 'XXL'];
 const availableColors = [
@@ -221,37 +230,105 @@ const availableColors = [
     { name: 'Green', code: '#008000' }, { name: 'Yellow', code: '#FFFF00' }
 ];
 
-// --- Submit Logic (Unified) ---
 const submitProduct = async () => {
     isSubmitting.value = true;
+    const token = localStorage.getItem('token');
+    const headers = { Authorization: `Bearer ${token}` };
+    const url = isEditMode.value ? `http://127.0.0.1:73/api/admin/products/${productId.value}/update` : 'http://127.0.0.1:73/api/admin/products';
+
     try {
-        if (isEditMode.value) {
-            // Update Request
-            await axios.post(`/api/admin/products/${productId.value}/update`, form.value);
-            Swal.fire('Success', 'Product updated successfully!', 'success');
-        } else {
-            // Create Request
-            await axios.post('/api/admin/products', form.value);
-            Swal.fire('Success', 'Product created successfully!', 'success');
-        }
-
-        // সফল হলে প্রোডাক্ট লিস্টে রিডাইরেক্ট
+        await axios.post(url, form.value, { headers });
+        Swal.fire('Success', isEditMode.value ? 'Product updated!' : 'Product created!', 'success');
         router.push('/admin/products');
-
     } catch (error) {
-        console.error(error);
-        const msg = error.response?.data?.message || 'Something went wrong!';
-        Swal.fire('Error', msg, 'error');
-    } finally {
-        isSubmitting.value = false;
-    }
+        Swal.fire('Error', error.response?.data?.message || 'Something went wrong!', 'error');
+    } finally { isSubmitting.value = false; }
 };
 </script>
 
 <template>
     <AdminLayout>
-        <MediaManager v-if="showMediaManager" @close="showMediaManager = false" @select="handleMediaSelect" />
 
+        <div v-if="showMediaManager" class="fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+            <div class="bg-white w-full max-w-6xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-up relative">
+
+                <div class="flex items-center justify-between border-b px-6 pt-4 bg-white relative z-10">
+                    <div class="flex gap-8">
+                        <button @click="activeModalTab = 'select'" :class="activeModalTab === 'select' ? 'border-b-2 border-slate-800 font-bold text-slate-800' : 'text-slate-500 hover:text-slate-800'" class="pb-3 text-lg transition-colors">Select File</button>
+                        <button @click="activeModalTab = 'upload'" :class="activeModalTab === 'upload' ? 'border-b-2 border-slate-800 font-bold text-slate-800' : 'text-slate-500 hover:text-slate-800'" class="pb-3 text-lg transition-colors">Upload New</button>
+                    </div>
+                    <button type="button" @click="closeGallery" class="text-3xl text-slate-400 hover:text-red-500 pb-3 leading-none transition-colors">&times;</button>
+                </div>
+
+                <div v-if="activeModalTab === 'select'" class="flex-1 flex flex-col overflow-hidden bg-[#f8f9fa]">
+                    <div class="p-4 px-6 flex justify-between items-center bg-white border-b">
+                        <h4 class="text-[#6366f1] font-semibold text-lg">Media Library</h4>
+                        <input v-model="searchQuery" type="text" placeholder="Search files..." class="border border-slate-300 rounded px-4 py-2 w-64 text-sm focus:outline-none focus:border-[#6366f1] transition-colors">
+                    </div>
+
+                    <div class="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar pb-24">
+                        <div v-if="mediaLoading" class="flex justify-center items-center h-40">
+                            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-[#6366f1]"></div>
+                        </div>
+                        <div v-else-if="filteredMedia.length === 0" class="text-center py-20 text-slate-500 font-medium">
+                            No files found. Go to "Upload New" to add images.
+                        </div>
+                        <div v-else class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
+                            <div v-for="media in filteredMedia" :key="media.id"
+                                @click="toggleMediaSelection(media.file_url)"
+                                class="bg-white border rounded-lg overflow-hidden cursor-pointer flex flex-col relative transition-all group"
+                                :class="selectedMedia.includes(media.file_url) ? 'border-[#6366f1] shadow-md ring-2 ring-[#6366f1]/30' : 'border-slate-200 hover:border-slate-400'">
+
+                                <div class="absolute top-2 left-2 z-10" v-if="selectedMedia.includes(media.file_url)">
+                                    <div class="bg-[#6366f1] text-white rounded w-6 h-6 flex items-center justify-center shadow">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                                    </div>
+                                </div>
+
+                                <div class="h-36 bg-slate-100 relative p-2">
+                                    <img :src="media.file_url" class="w-full h-full object-contain drop-shadow-sm group-hover:scale-105 transition-transform duration-300">
+                                </div>
+                                <div class="p-2.5 text-xs text-slate-500 truncate text-center border-t bg-white font-medium">
+                                    {{ media.file_name || 'image.jpg' }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white border-t p-4 px-6 flex justify-between items-center absolute bottom-0 w-full shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
+                        <div class="flex items-center gap-6">
+                            <span class="font-bold text-slate-800 text-sm">{{ selectedMedia.length }} File(s) selected</span>
+                            <button v-if="selectedMedia.length > 0" @click="selectedMedia = []" class="text-red-500 text-sm font-semibold hover:text-red-700 transition">Clear Selection</button>
+                        </div>
+                        <button @click="confirmSelection" class="bg-[#fbbf24] hover:bg-[#f59e0b] text-white px-10 py-2.5 rounded shadow text-sm font-bold transition-transform active:scale-95">Add Files</button>
+                    </div>
+                </div>
+
+                <div v-if="activeModalTab === 'upload'" class="flex-1 overflow-y-auto p-8 bg-[#f8f9fa] flex items-center justify-center">
+                    <div
+                        @dragover.prevent="isDragging = true"
+                        @dragleave.prevent="isDragging = false"
+                        @drop.prevent="handleUpload"
+                        :class="isDragging ? 'bg-indigo-50 border-indigo-400' : 'bg-white border-slate-300'"
+                        class="relative w-full max-w-3xl border-2 border-dashed rounded-xl p-20 flex flex-col items-center justify-center text-center transition-all shadow-sm">
+
+                        <input type="file" multiple @change="handleUpload" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" :disabled="isUploading">
+
+                        <div v-if="isUploading" class="text-indigo-600 flex flex-col items-center">
+                            <div class="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div>
+                            <p class="font-bold text-lg">Uploading Images...</p>
+                        </div>
+                        <div v-else class="text-slate-500 pointer-events-none">
+                            <div class="bg-slate-600 text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow">
+                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                            </div>
+                            <h3 class="text-xl font-bold text-slate-700 mb-2">Drag & Drop Images Here</h3>
+                            <p class="text-sm text-slate-400">or click to browse from your computer</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <div v-if="isLoadingData" class="flex justify-center items-center h-64">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
         </div>
@@ -425,8 +502,8 @@ const submitProduct = async () => {
                                         <button type="button" @click.stop="form.thumbnail = null" class="btn-remove-float">&times;</button>
                                     </div>
                                     <div v-else class="upload-placeholder">
-                                        <i class="bi bi-cloud-upload text-3xl"></i>
-                                        <span>Select Thumbnail</span>
+                                        <i class="bi bi-cloud-upload text-3xl mb-2"></i>
+                                        <span class="font-medium text-indigo-600">Browse Gallery</span>
                                     </div>
                                 </div>
                             </div>
@@ -537,7 +614,7 @@ const submitProduct = async () => {
                                     <div v-else>
                                         <label>Review Image</label>
                                         <div class="flex gap-3 items-center">
-                                            <button type="button" @click="openGallery('testimonial', idx)" class="btn-browse-small">Select</button>
+                                            <button type="button" @click="openGallery('testimonial', idx)" class="btn-browse-small">Select from Gallery</button>
                                             <img v-if="testi.image" :src="testi.image" class="h-10 rounded border">
                                             <input type="text" v-model="testi.image" class="form-control-enhanced" readonly>
                                         </div>
@@ -623,19 +700,21 @@ input:checked + .slider:before { transform: translateX(20px); }
 .check-icon { color: white; filter: drop-shadow(0 0 2px rgba(0,0,0,0.5)); }
 
 /* --- IMAGES --- */
-.thumbnail-uploader { height: 200px; border: 2px dashed #d1d5db; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; background: #f9fafb; }
+.thumbnail-uploader { height: 200px; border: 2px dashed #d1d5db; border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; background: #f9fafb; transition: border-color 0.2s; }
+.thumbnail-uploader:hover { border-color: #6366f1; }
 .upload-placeholder { display: flex; flex-direction: column; align-items: center; color: #9ca3af; }
-.preview-full { width: 100%; height: 100%; }
+.preview-full { width: 100%; height: 100%; position: relative; }
 .preview-full img { width: 100%; height: 100%; object-fit: contain; border-radius: 8px; }
-.btn-remove-float { position: absolute; top: 10px; right: 10px; background: white; border: 1px solid #ef4444; color: #ef4444; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; }
+.btn-remove-float { position: absolute; top: 10px; right: 10px; background: white; border: 1px solid #ef4444; color: #ef4444; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; z-index: 10; display: flex; justify-content: center; align-items: center; font-size: 1.2rem; }
 .gallery-grid { display: flex; flex-wrap: wrap; gap: 10px; }
-.upload-box-small { width: 80px; height: 80px; border: 2px dashed #d1d5db; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; color: #6b7280; font-size: 0.8rem; }
+.upload-box-small { width: 80px; height: 80px; border: 2px dashed #d1d5db; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; color: #6b7280; font-size: 0.8rem; transition: border-color 0.2s; }
+.upload-box-small:hover { border-color: #6366f1; color: #6366f1; }
 .preview-box { width: 80px; height: 80px; position: relative; border: 1px solid #e5e7eb; border-radius: 8px; }
 .preview-box img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
-.btn-remove-mini { position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border: none; width: 20px; height: 20px; border-radius: 50%; font-size: 12px; cursor: pointer; }
+.btn-remove-mini { position: absolute; top: -5px; right: -5px; background: #ef4444; color: white; border: none; width: 20px; height: 20px; border-radius: 50%; font-size: 12px; cursor: pointer; display: flex; justify-content: center; align-items: center; }
 
 /* --- QUILL --- */
-.quill-wrapper { height: 250px; display: flex; flex-direction: column; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; }
+.quill-wrapper { height: 250px; display: flex; flex-direction: column; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; background: white; }
 
 /* --- AI SEO SECTION --- */
 .border-ai { border: 2px solid #a855f7; }
@@ -643,22 +722,39 @@ input:checked + .slider:before { transform: translateX(20px); }
 .btn-ai-generate { background: linear-gradient(135deg, #a855f7, #ec4899); color: white; border: none; padding: 8px 16px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; box-shadow: 0 4px 10px rgba(168, 85, 247, 0.3); transition: transform 0.2s; }
 .btn-ai-generate:hover { transform: scale(1.05); }
 .tag-input-wrapper { border: 1px solid #d1d5db; border-radius: 8px; padding: 5px; display: flex; flex-wrap: wrap; gap: 5px; background: white; }
-.tag-badge { background: #e5e7eb; padding: 2px 10px; border-radius: 12px; font-size: 0.85rem; display: flex; align-items: center; gap: 5px; color: #374151; font-weight: 600; }
+.tag-badge { background: #e5e7eb; padding: 2px 10px; border-radius: 12px; font-size: 0.85rem; display: flex; align-items: center; gap: 5px; color: #374151; font-weight: 600; cursor: pointer; }
 .tag-input-wrapper input { border: none; outline: none; padding: 5px; flex-grow: 1; }
 
 /* --- TESTIMONIALS --- */
-.btn-add-testi { background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; }
+.btn-add-testi { background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; transition: background 0.2s; }
+.btn-add-testi:hover { background: #059669; }
 .testimonial-row { background: white; padding: 15px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 10px; }
 .testi-header { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px dashed #e5e7eb; padding-bottom: 5px; }
 .badge-count { font-size: 0.8rem; font-weight: bold; color: #9ca3af; }
-.btn-trash { color: #ef4444; border: none; background: none; cursor: pointer; }
+.btn-trash { color: #ef4444; border: none; background: none; cursor: pointer; transition: color 0.2s; }
+.btn-trash:hover { color: #dc2626; }
 .grid-testimonial { display: grid; grid-template-columns: 1fr 3fr; gap: 15px; }
-.btn-browse-small { border: 1px solid #d1d5db; background: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+.btn-browse-small { border: 1px solid #d1d5db; background: white; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: background 0.2s; }
+.btn-browse-small:hover { background: #f3f4f6; }
 
 /* --- FOOTER --- */
 .submit-section { text-align: center; margin: 40px 0 60px; }
-.btn-submit-final { background: #111827; color: white; padding: 15px 50px; border: none; border-radius: 50px; font-size: 1.1rem; font-weight: 700; cursor: pointer; box-shadow: 0 10px 25px rgba(0,0,0,0.1); transition: 0.2s; }
+.btn-submit-final { background: #111827; color: white; padding: 15px 50px; border: none; border-radius: 50px; font-size: 1.1rem; font-weight: 700; cursor: pointer; box-shadow: 0 10px 25px rgba(0,0,0,0.1); transition: all 0.2s; }
 .btn-submit-final:hover { transform: translateY(-3px); box-shadow: 0 15px 35px rgba(0,0,0,0.15); }
+.btn-submit-final:disabled { background: #6b7280; transform: none; box-shadow: none; cursor: not-allowed; }
+
+/* Animations */
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.animate-up { animation: slideUp 0.4s ease forwards; }
+.delay-1 { animation-delay: 0.1s; opacity: 0; }
+.delay-2 { animation-delay: 0.2s; opacity: 0; }
+.delay-3 { animation-delay: 0.3s; opacity: 0; }
+.delay-4 { animation-delay: 0.4s; opacity: 0; }
+.delay-5 { animation-delay: 0.5s; opacity: 0; }
+.delay-6 { animation-delay: 0.6s; opacity: 0; }
+
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
 
 @media (max-width: 768px) {
     .grid-3, .grid-2, .grid-testimonial { grid-template-columns: 1fr; }
