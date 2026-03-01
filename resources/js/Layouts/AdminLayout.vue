@@ -7,6 +7,8 @@ import Swal from 'sweetalert2';
 const isSidebarOpen = ref(true);
 const isProductMenuOpen = ref(false);
 const isOrderMenuOpen = ref(false);
+const isBannerMenuOpen = ref(false);
+const isAttributeMenuOpen = ref(false); // Attributes ড্রপডাউনের জন্য
 
 const router = useRouter();
 const route = useRoute();
@@ -15,9 +17,13 @@ const userName = ref(localStorage.getItem('user_name') || 'Admin');
 const orderStatuses = ref([]);
 
 onMounted(async () => {
-    // মেনু ওপেন রাখা (অ্যাক্টিভ রাউট অনুযায়ী)
+    // মেনু ওপেন রাখা (অ্যাক্টিভ রাউট অনুযায়ী)
     if (route.path.startsWith('/admin/products')) isProductMenuOpen.value = true;
     if (route.path.startsWith('/admin/orders')) isOrderMenuOpen.value = true;
+    if (route.path.startsWith('/admin/banner')) isBannerMenuOpen.value = true;
+    if (route.path.startsWith('/admin/brands') || route.path.startsWith('/admin/colors') || route.path.startsWith('/admin/sizes')) {
+        isAttributeMenuOpen.value = true;
+    }
 
     // ডাটাবেস থেকে ডাইনামিক স্ট্যাটাসগুলো সাইডবারের জন্য কল করা
     try {
@@ -32,18 +38,14 @@ onMounted(async () => {
         console.error("Failed to fetch order statuses for sidebar");
     }
 });
-const isBannerMenuOpen = ref(false);
 
-// onMounted এর ভেতরে এটি যোগ করুন (যাতে পেজ রিলোডে মেনু খোলা থাকে):
-if (route.path.startsWith('/admin/banner')) isBannerMenuOpen.value = true;
-
-// এই ফাংশনটি যোগ করুন:
-const toggleBannerMenu = () => {
+// মেনু টগল ফাংশনগুলো
+const toggleOrderMenu = () => {
     if (!isSidebarOpen.value) {
         isSidebarOpen.value = true;
-        isBannerMenuOpen.value = true;
+        isOrderMenuOpen.value = true;
     } else {
-        isBannerMenuOpen.value = !isBannerMenuOpen.value;
+        isOrderMenuOpen.value = !isOrderMenuOpen.value;
     }
 };
 
@@ -56,12 +58,21 @@ const toggleProductMenu = () => {
     }
 };
 
-const toggleOrderMenu = () => {
+const toggleBannerMenu = () => {
     if (!isSidebarOpen.value) {
         isSidebarOpen.value = true;
-        isOrderMenuOpen.value = true;
+        isBannerMenuOpen.value = true;
     } else {
-        isOrderMenuOpen.value = !isOrderMenuOpen.value;
+        isBannerMenuOpen.value = !isBannerMenuOpen.value;
+    }
+};
+
+const toggleAttributeMenu = () => {
+    if (!isSidebarOpen.value) {
+        isSidebarOpen.value = true;
+        isAttributeMenuOpen.value = true;
+    } else {
+        isAttributeMenuOpen.value = !isAttributeMenuOpen.value;
     }
 };
 
@@ -79,7 +90,6 @@ const logout = async () => {
 
         if (result.isConfirmed) {
             const token = localStorage.getItem('token');
-            // Full URL এবং Token সহ Logout Request
             await axios.post('http://127.0.0.1:73/api/logout', {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -89,7 +99,6 @@ const logout = async () => {
             router.push('/login');
         }
     } catch (error) {
-        // যদি টোকেন এক্সপায়ার হয়ে গিয়েও থাকে, তবুও জোর করে ক্লিয়ার করে লগিন পেজে পাঠাবে
         localStorage.clear();
         router.push('/login');
     }
@@ -125,16 +134,11 @@ const logout = async () => {
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
-
                     <div v-show="isSidebarOpen && isOrderMenuOpen" class="mt-1 space-y-1 bg-slate-800/40 rounded-lg overflow-hidden py-1">
-                        <router-link to="/admin/orders"
-                            class="flex items-center pl-12 pr-4 py-2.5 text-sm transition"
-                            :class="route.path === '/admin/orders' && !route.query.status ? 'text-white bg-indigo-500 font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
+                        <router-link to="/admin/orders" class="flex items-center pl-12 pr-4 py-2.5 text-sm transition" :class="route.path === '/admin/orders' && !route.query.status ? 'text-white bg-indigo-500 font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
                             All Orders
                         </router-link>
-                        <router-link v-for="status in orderStatuses" :key="status.id" :to="`/admin/orders?status=${status.name}`"
-                            class="flex items-center pl-12 pr-4 py-2.5 text-sm transition"
-                            :class="route.query.status === status.name ? 'text-white bg-indigo-500 font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
+                        <router-link v-for="status in orderStatuses" :key="status.id" :to="`/admin/orders?status=${status.name}`" class="flex items-center pl-12 pr-4 py-2.5 text-sm transition" :class="route.query.status === status.name ? 'text-white bg-indigo-500 font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
                             {{ status.name }} Orders
                         </router-link>
                     </div>
@@ -150,16 +154,11 @@ const logout = async () => {
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
                         </svg>
                     </button>
-
                     <div v-show="isSidebarOpen && isProductMenuOpen" class="mt-1 space-y-1 bg-slate-800/40 rounded-lg overflow-hidden py-1">
-                        <router-link to="/admin/products"
-                            class="flex items-center pl-12 pr-4 py-2.5 text-sm transition"
-                            :class="route.path === '/admin/products' ? 'text-white bg-indigo-500 font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
+                        <router-link to="/admin/products" class="flex items-center pl-12 pr-4 py-2.5 text-sm transition" :class="route.path === '/admin/products' ? 'text-white bg-indigo-500 font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
                             Product List
                         </router-link>
-                        <router-link to="/admin/products/create"
-                            class="flex items-center pl-12 pr-4 py-2.5 text-sm transition"
-                            :class="route.path === '/admin/products/create' ? 'text-white bg-indigo-500 font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
+                        <router-link to="/admin/products/create" class="flex items-center pl-12 pr-4 py-2.5 text-sm transition" :class="route.path === '/admin/products/create' ? 'text-white bg-indigo-500 font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
                             Add New Product
                         </router-link>
                     </div>
@@ -170,35 +169,53 @@ const logout = async () => {
                     <span v-if="isSidebarOpen" class="ml-3 font-medium">Categories</span>
                 </router-link>
 
+                <div>
+                    <button @click="toggleAttributeMenu" class="w-full flex items-center justify-between p-3 hover:bg-indigo-600 rounded-lg transition focus:outline-none" :class="isAttributeMenuOpen || route.path.startsWith('/admin/brands') || route.path.startsWith('/admin/colors') || route.path.startsWith('/admin/sizes') ? 'bg-slate-800' : ''">
+                        <div class="flex items-center">
+                            <span class="text-xl w-6 text-center">🎨</span>
+                            <span v-if="isSidebarOpen" class="ml-3 font-medium">Attributes</span>
+                        </div>
+                        <svg v-if="isSidebarOpen" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-200" :class="isAttributeMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div v-show="isSidebarOpen && isAttributeMenuOpen" class="mt-1 space-y-1 bg-slate-800/40 rounded-lg overflow-hidden py-1">
+                        <router-link to="/admin/brands" class="flex items-center pl-12 pr-4 py-2.5 text-sm transition" :class="route.path === '/admin/brands' ? 'text-white bg-[#2563eb] font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
+                            Brands
+                        </router-link>
+                        <router-link to="/admin/colors" class="flex items-center pl-12 pr-4 py-2.5 text-sm transition" :class="route.path === '/admin/colors' ? 'text-white bg-[#2563eb] font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
+                            Colors
+                        </router-link>
+                        <router-link to="/admin/sizes" class="flex items-center pl-12 pr-4 py-2.5 text-sm transition" :class="route.path === '/admin/sizes' ? 'text-white bg-[#2563eb] font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
+                            Sizes
+                        </router-link>
+                    </div>
+                </div>
+
+                <div>
+                    <button @click="toggleBannerMenu" class="w-full flex items-center justify-between p-3 hover:bg-indigo-600 rounded-lg transition focus:outline-none" :class="isBannerMenuOpen || route.path.startsWith('/admin/banner') ? 'bg-slate-800' : ''">
+                        <div class="flex items-center">
+                            <span class="text-xl w-6 text-center">🪧</span>
+                            <span v-if="isSidebarOpen" class="ml-3 font-medium">Banner & Ads</span>
+                        </div>
+                        <svg v-if="isSidebarOpen" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-200" :class="isBannerMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+                    <div v-show="isSidebarOpen && isBannerMenuOpen" class="mt-1 space-y-1 bg-slate-800/40 rounded-lg overflow-hidden py-1">
+                        <router-link to="/admin/banner-categories" class="flex items-center pl-12 pr-4 py-2.5 text-sm transition" :class="route.path === '/admin/banner-categories' ? 'text-white bg-[#2563eb] font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
+                            Banner Category
+                        </router-link>
+                        <router-link to="/admin/banners" class="flex items-center pl-12 pr-4 py-2.5 text-sm transition" :class="route.path === '/admin/banners' ? 'text-white bg-[#2563eb] font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
+                            Banner & Ads
+                        </router-link>
+                    </div>
+                </div>
+
                 <router-link to="/admin/order-statuses" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="route.path.startsWith('/admin/order-statuses') ? 'bg-indigo-600 shadow-md' : ''">
                     <span class="text-xl w-6 text-center">🏷️</span>
                     <span v-if="isSidebarOpen" class="ml-3 font-medium">Order Statuses</span>
                 </router-link>
-
-               <div>
-    <button @click="toggleBannerMenu" class="w-full flex items-center justify-between p-3 hover:bg-indigo-600 rounded-lg transition focus:outline-none" :class="isBannerMenuOpen || route.path.startsWith('/admin/banner') ? 'bg-slate-800' : ''">
-        <div class="flex items-center">
-            <span class="text-xl w-6 text-center">🪧</span>
-            <span v-if="isSidebarOpen" class="ml-3 font-medium">Banner & Ads</span>
-        </div>
-        <svg v-if="isSidebarOpen" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 transition-transform duration-200" :class="isBannerMenuOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-        </svg>
-    </button>
-
-    <div v-show="isSidebarOpen && isBannerMenuOpen" class="mt-1 space-y-1 bg-slate-800/40 rounded-lg overflow-hidden py-1">
-        <router-link to="/admin/banner-categories"
-            class="flex items-center pl-12 pr-4 py-2.5 text-sm transition"
-            :class="route.path === '/admin/banner-categories' ? 'text-white bg-[#2563eb] font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
-            Banner Category
-        </router-link>
-        <router-link to="/admin/banners"
-            class="flex items-center pl-12 pr-4 py-2.5 text-sm transition"
-            :class="route.path === '/admin/banners' ? 'text-white bg-[#2563eb] font-bold shadow' : 'text-gray-300 hover:text-white hover:bg-slate-700'">
-            Banner & Ads
-        </router-link>
-    </div>
-</div>
 
                 <router-link to="/admin/media" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="route.path.startsWith('/admin/media') ? 'bg-indigo-600 shadow-md' : ''">
                     <span class="text-xl w-6 text-center">📸</span>
@@ -237,7 +254,6 @@ const logout = async () => {
 </template>
 
 <style scoped>
-/* গ্লোবাল .router-link-active ক্লাসটি মুছে ফেলা হয়েছে যাতে এটি অন্যান্য লিংকে প্রভাব না ফেলে */
 .custom-scrollbar::-webkit-scrollbar { width: 5px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #475569; border-radius: 10px; }
 .custom-scrollbar::-webkit-scrollbar-track { background-color: transparent; }

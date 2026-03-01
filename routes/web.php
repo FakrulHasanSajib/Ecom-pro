@@ -6,3 +6,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/{any}', function () {
     return view('app'); // resources/views/app.blade.php ফাইল লোড হবে
 })->where('any', '.*');
+
+
+
+

@@ -5,10 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Brand extends Model
+class Size extends Model
 {
     use HasFactory;
 
-    // 🔥 এখানে 'slug' যুক্ত করা হলো
-    protected $fillable = ['name', 'slug', 'status'];
+    // এই লাইনটি না থাকলে 500 Error আসবে
+    protected $fillable = ['name', 'status'];
 }

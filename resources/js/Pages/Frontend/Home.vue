@@ -34,6 +34,11 @@ const initialLoading = ref(true);
 const wishlist = ref([]);
 const showBackToTop = ref(false);
 
+// 🔥 Dynamic Sliders & Settings State
+const sliders = ref([]);
+const currentSlide = ref(0);
+const settings = ref({});
+
 // Filters
 const searchQuery = ref('');
 const selectedCategory = ref(null);
@@ -59,6 +64,43 @@ const isInWishlist = (productId) => {
     return wishlist.value.includes(productId);
 };
 
+// 🔥 Safe Computed Property for Sliders (fixes the .filter error)
+const heroBanners = computed(() => {
+    if (!Array.isArray(sliders.value)) return [];
+
+    const mainBanners = sliders.value.filter(s => s.category_name === 'Slider' || s.category_name === 'Home Banner');
+    return mainBanners.length > 0 ? mainBanners : sliders.value;
+});
+
+// 🔥 Settings Helper Function
+// 🔥 Settings Helper Function (Super Robust & Case-Insensitive)
+// 🔥 Settings Helper Function (Super Robust for Database Matches)
+const normalize = (str) => {
+    // এটি স্পেস, আন্ডারস্কোর, হাইফেন সব মুছে ছোট হাতের অক্ষরে কনভার্ট করবে
+    return str ? String(str).replace(/[_-\s]+/g, '').toLowerCase() : '';
+};
+
+const getSetting = (group, key, defaultValue = '') => {
+    if (!settings.value) return defaultValue;
+
+    // ১. গ্রুপের নাম মেলানো (general == General)
+    const targetGroup = Object.keys(settings.value).find(k => normalize(k) === normalize(group));
+    
+    if (targetGroup && Array.isArray(settings.value[targetGroup])) {
+        // ২. key বা name কলাম মেলানো (site_name == Site Name)
+        const item = settings.value[targetGroup].find(s => 
+            normalize(s.key) === normalize(key) || 
+            normalize(s.name) === normalize(key)
+        );
+        
+        // ৩. ভ্যালু থাকলে রিটার্ন করা
+        if (item && item.value !== null && item.value !== '') {
+            return item.type === 'image' ? item.value_url : item.value;
+        }
+    }
+    return defaultValue; 
+};
+
 // Methods
 const getImageUrl = (path) => {
     if (!path) return 'https://placehold.co/600x400?text=No+Image';
@@ -76,26 +118,30 @@ const fetchData = async () => {
         if (minPrice.value) params.min_price = minPrice.value;
         if (maxPrice.value) params.max_price = maxPrice.value;
 
-        const [prodRes, catRes, featuredRes] = await Promise.all([
-            axios.get(`${backendUrl}/api/public/products`, { params }),
+        // API Calls with public routes
+        const [prodRes, catRes, featuredRes, sliderRes, settingRes] = await Promise.all([
+            axios.get(`${backendUrl}/api/public/products`, { params }).catch(() => ({ data: { data: [] } })),
             axios.get(`${backendUrl}/api/public/categories`).catch(() => ({ data: [] })),
-            axios.get(`${backendUrl}/api/public/products/featured`).catch(() => ({ data: [] }))
+            axios.get(`${backendUrl}/api/public/products/featured`).catch(() => ({ data: [] })),
+            axios.get(`${backendUrl}/api/public/sliders`).catch(() => ({ data: [] })),
+            
+            // 🔥 এখানে /admin/settings এর জায়গায় /public/settings দেওয়া হয়েছে
+            axios.get(`${backendUrl}/api/public/settings`).catch(() => ({ data: { data: {} } }))
         ]);
 
-        products.value = prodRes.data.data || [];
-        categories.value = catRes.data.data || catRes.data || [];
-        featuredProducts.value = featuredRes.data.data || featuredRes.data || [];
+        products.value = prodRes.data?.data || [];
+        categories.value = catRes.data?.data || catRes.data || [];
+        featuredProducts.value = featuredRes.data?.data || featuredRes.data || [];
+        
+        // Extract sliders safely
+        const rawSliders = sliderRes.data?.data || sliderRes.data || [];
+        sliders.value = Array.isArray(rawSliders) ? rawSliders : [];
+
+        // Extract settings safely
+        settings.value = settingRes.data?.data || {};
 
     } catch (error) {
         console.error("Data fetch error:", error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Oops...',
-            text: 'Failed to load products. Please try again.',
-            background: '#1e1e2f',
-            color: '#fff',
-            confirmButtonColor: '#6366f1'
-        });
     } finally {
         loading.value = false;
         initialLoading.value = false;
@@ -184,6 +230,16 @@ const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
+// 🔥 Auto Slider Timer Logic
+let slideInterval;
+const startSlider = () => {
+    slideInterval = setInterval(() => {
+        if (heroBanners.value.length > 1) {
+            currentSlide.value = (currentSlide.value + 1) % heroBanners.value.length;
+        }
+    }, 5000);
+};
+
 // Debounced search
 let debounceTimer = null;
 watch(searchQuery, () => {
@@ -203,10 +259,12 @@ onMounted(() => {
         wishlist.value = JSON.parse(savedWishlist);
     }
     window.addEventListener('scroll', handleScroll);
+    startSlider();
 });
 
 onUnmounted(() => {
     window.removeEventListener('scroll', handleScroll);
+    clearInterval(slideInterval);
 });
 
 watch(wishlist, (newVal) => {
@@ -217,7 +275,6 @@ watch(wishlist, (newVal) => {
 <template>
     <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 font-sans antialiased">
 
-        <!-- Loading Screen -->
         <div v-if="initialLoading" class="fixed inset-0 bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-950 z-[100] flex items-center justify-center">
             <div class="text-center">
                 <div class="relative mb-8">
@@ -231,19 +288,21 @@ watch(wishlist, (newVal) => {
             </div>
         </div>
 
-        <!-- Header -->
         <header class="bg-white/80 backdrop-blur-xl border-b border-indigo-100/50 sticky top-0 z-50 transition-all duration-300">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-                <!-- Logo -->
+
                 <router-link to="/" class="flex items-center gap-3 group">
-                    <div class="relative">
+                    <img v-if="getSetting('general', 'site_logo')" :src="getSetting('general', 'site_logo')" class="h-10 w-auto object-contain transition-transform group-hover:scale-105" alt="Logo">
+                    <div v-else class="relative">
                         <span class="text-4xl group-hover:scale-110 group-hover:rotate-12 transition-all duration-300 inline-block">🛍️</span>
                         <div class="absolute -inset-2 bg-indigo-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     </div>
-                    <span class="font-black text-3xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent tracking-tight">E-Shop</span>
+
+                    <span v-if="!getSetting('general', 'site_logo')" class="font-black text-3xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent tracking-tight">
+                        {{ getSetting('general', 'site_name', 'E-Shop') }}
+                    </span>
                 </router-link>
 
-                <!-- Search Bar - Desktop -->
                 <div class="hidden md:flex flex-1 max-w-xl mx-10">
                     <div class="relative w-full">
                         <input
@@ -263,17 +322,14 @@ watch(wishlist, (newVal) => {
                     </div>
                 </div>
 
-                <!-- Actions -->
                 <div class="flex items-center gap-4">
-                    <!-- Mobile Search Toggle -->
                     <button class="md:hidden p-3 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
                         <span class="text-xl">🔍</span>
                     </button>
 
-                    <!-- User Menu -->
                     <template v-if="authStore.isAuthenticated">
                         <router-link
-                            to="/dashboard"
+                            to="/admin/dashboard"
                             class="flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 font-semibold px-5 py-2.5 rounded-xl hover:from-indigo-100 hover:to-purple-100 transition-all border border-indigo-200/50 shadow-sm"
                         >
                             <span class="text-lg">👤</span>
@@ -288,7 +344,6 @@ watch(wishlist, (newVal) => {
                         </router-link>
                     </template>
 
-                    <!-- Cart -->
                     <router-link to="/checkout" class="relative">
                         <button class="p-3 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all relative">
                             <span class="text-xl">🛒</span>
@@ -301,9 +356,7 @@ watch(wishlist, (newVal) => {
             </div>
         </header>
 
-        <!-- Hero Section -->
-        <section class="relative bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 text-white overflow-hidden">
-            <!-- Animated Background -->
+        <section class="relative bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 text-white overflow-hidden min-h-[500px]">
             <div class="absolute inset-0">
                 <div class="absolute inset-0 opacity-20"
                      style="background-image: url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%239C92AC\' fill-opacity=\'0.05\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');">
@@ -314,95 +367,103 @@ watch(wishlist, (newVal) => {
             </div>
 
             <div class="max-w-7xl mx-auto px-6 py-24 md:py-32 relative z-10">
-                <div class="grid lg:grid-cols-2 gap-16 items-center">
-                    <!-- Left Content -->
-                    <div class="text-center lg:text-left">
-                        <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-indigo-300 text-sm font-medium mb-8 animate-fade-in-up">
-                            <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                            New Collection 2026
+                <transition name="slide-fade" mode="out-in">
+
+                    <div v-if="heroBanners.length > 0" :key="currentSlide" class="grid lg:grid-cols-2 gap-16 items-center">
+                        <div class="text-center lg:text-left">
+                            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-indigo-300 text-sm font-medium mb-8 animate-fade-in-up">
+                                <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                                {{ heroBanners[currentSlide].category_name || 'New Collection' }}
+                            </div>
+
+                            <h1 class="text-5xl md:text-7xl font-black leading-tight mb-6 animate-fade-in-up animation-delay-200 drop-shadow-lg">
+                                {{ heroBanners[currentSlide].title || 'Discover Tomorrow\'s Style Today' }}
+                            </h1>
+
+                            <p class="text-xl md:text-2xl text-indigo-200/90 max-w-2xl mx-auto lg:mx-0 mb-10 animate-fade-in-up animation-delay-400">
+                                {{ heroBanners[currentSlide].description || 'Premium curated products. Exceptional quality. Prices you\'ll love.' }}
+                            </p>
+
+                            <div class="flex flex-wrap gap-4 justify-center lg:justify-start animate-fade-in-up animation-delay-600">
+                                <a
+                                    :href="heroBanners[currentSlide].link || '/shop'"
+                                    class="bg-white text-indigo-950 hover:bg-gray-100 shadow-2xl shadow-indigo-500/30 rounded-full px-10 py-5 text-lg font-bold transition-all hover:scale-105 active:scale-95 group"
+                                >
+                                    Shop Now
+                                    <span class="ml-2 group-hover:translate-x-1 transition-transform inline-block">→</span>
+                                </a>
+
+                                <button
+                                    class="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-10 py-5 rounded-full text-lg font-semibold hover:bg-white/20 transition-all hover:scale-105 active:scale-95"
+                                    @click="document.getElementById('categories-section').scrollIntoView({ behavior: 'smooth' })"
+                                >
+                                    Explore Categories
+                                </button>
+                            </div>
                         </div>
 
-                        <h1 class="text-5xl md:text-7xl font-black leading-tight mb-6 animate-fade-in-up animation-delay-200">
-                            Discover
-                            <span class="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Tomorrow's</span>
-                            <br>Style Today
-                        </h1>
-
-                        <p class="text-xl md:text-2xl text-indigo-200/90 max-w-2xl mx-auto lg:mx-0 mb-10 animate-fade-in-up animation-delay-400">
-                            Premium curated products. Exceptional quality.
-                            <span class="font-semibold text-white">Prices you'll love.</span>
-                        </p>
-
-                        <div class="flex flex-wrap gap-4 justify-center lg:justify-start animate-fade-in-up animation-delay-600">
-                            <button
-                                class="bg-white text-indigo-950 hover:bg-gray-100 shadow-2xl shadow-indigo-500/30 rounded-full px-10 py-5 text-lg font-bold transition-all hover:scale-105 active:scale-95 group"
-                                @click="$router.push('/shop')"
-                            >
-                                Shop Now
-                                <span class="ml-2 group-hover:translate-x-1 transition-transform">→</span>
-                            </button>
-
-                            <button
-                                class="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-10 py-5 rounded-full text-lg font-semibold hover:bg-white/20 transition-all hover:scale-105 active:scale-95"
-                                @click="document.getElementById('categories-section').scrollIntoView({ behavior: 'smooth' })"
-                            >
-                                Explore Categories
-                            </button>
-                        </div>
-
-                        <!-- Stats -->
-                        <div class="grid grid-cols-3 gap-8 mt-16 animate-fade-in-up animation-delay-800">
-                            <div class="text-center lg:text-left">
-                                <div class="text-3xl font-black text-white">50K+</div>
-                                <div class="text-indigo-300 text-sm">Happy Customers</div>
-                            </div>
-                            <div class="text-center lg:text-left">
-                                <div class="text-3xl font-black text-white">10K+</div>
-                                <div class="text-indigo-300 text-sm">Products</div>
-                            </div>
-                            <div class="text-center lg:text-left">
-                                <div class="text-3xl font-black text-white">24/7</div>
-                                <div class="text-indigo-300 text-sm">Support</div>
-                            </div>
+                        <div class="relative hidden lg:block animate-fade-in">
+                            <div class="absolute inset-0 bg-gradient-to-t from-indigo-900/50 via-transparent to-transparent rounded-3xl"></div>
+                            <img
+                                :src="heroBanners[currentSlide].image_url"
+                                class="rounded-3xl shadow-2xl object-cover w-full h-[450px] transform hover:scale-105 transition-transform duration-1000"
+                                alt="Hero Product"
+                            />
                         </div>
                     </div>
 
-                    <!-- Right Image -->
-                    <div class="relative hidden lg:block animate-fade-in">
-                        <div class="absolute inset-0 bg-gradient-to-t from-indigo-900/50 via-transparent to-transparent rounded-3xl"></div>
-                        <img
-                            src="https://images.unsplash.com/photo-1523275335684-04c0c856c0e0?q=80&w=1200&auto=format&fit=crop"
-                            class="rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-1000"
-                            alt="Hero Product"
-                        />
+                    <div v-else class="grid lg:grid-cols-2 gap-16 items-center">
+                        <div class="text-center lg:text-left">
+                            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-indigo-300 text-sm font-medium mb-8 animate-fade-in-up">
+                                <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                                New Collection 2026
+                            </div>
 
-                        <!-- Floating Badges -->
-                        <div class="absolute -bottom-6 -left-6 bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-xl animate-float">
-                            <div class="flex items-center gap-3">
-                                <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                                    <span class="text-green-600 text-2xl">✓</span>
-                                </div>
-                                <div>
-                                    <div class="text-sm text-gray-600">Free Shipping</div>
-                                    <div class="font-bold text-gray-900">On all orders</div>
-                                </div>
+                            <h1 class="text-5xl md:text-7xl font-black leading-tight mb-6 animate-fade-in-up animation-delay-200">
+                                Discover
+                                <span class="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Tomorrow's</span>
+                                <br>Style Today
+                            </h1>
+
+                            <p class="text-xl md:text-2xl text-indigo-200/90 max-w-2xl mx-auto lg:mx-0 mb-10 animate-fade-in-up animation-delay-400">
+                                Premium curated products. Exceptional quality.
+                                <span class="font-semibold text-white">Prices you'll love.</span>
+                            </p>
+
+                            <div class="flex flex-wrap gap-4 justify-center lg:justify-start animate-fade-in-up animation-delay-600">
+                                <button
+                                    class="bg-white text-indigo-950 hover:bg-gray-100 shadow-2xl shadow-indigo-500/30 rounded-full px-10 py-5 text-lg font-bold transition-all hover:scale-105 active:scale-95 group"
+                                    @click="$router.push('/shop')"
+                                >
+                                    Shop Now
+                                    <span class="ml-2 group-hover:translate-x-1 transition-transform inline-block">→</span>
+                                </button>
                             </div>
                         </div>
 
-                        <div class="absolute -top-6 -right-6 bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-xl animate-float animation-delay-1000">
-                            <div class="flex items-center gap-3">
-                                <div class="flex text-yellow-400 text-lg">
-                                    ★★★★★
-                                </div>
-                                <div class="font-bold text-gray-900">4.9/5</div>
-                            </div>
+                        <div class="relative hidden lg:block animate-fade-in">
+                            <div class="absolute inset-0 bg-gradient-to-t from-indigo-900/50 via-transparent to-transparent rounded-3xl"></div>
+                            <img
+                                src="https://images.unsplash.com/photo-1523275335684-04c0c856c0e0?q=80&w=1200&auto=format&fit=crop"
+                                class="rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-1000"
+                                alt="Hero Product"
+                            />
                         </div>
                     </div>
-                </div>
+                </transition>
+            </div>
+
+            <div v-if="heroBanners.length > 1" class="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 z-20">
+                <button
+                    v-for="(_, index) in heroBanners"
+                    :key="index"
+                    @click="currentSlide = index"
+                    :class="currentSlide === index ? 'w-10 bg-indigo-500' : 'w-3 bg-white/50 hover:bg-white/80'"
+                    class="h-3 rounded-full transition-all duration-500 shadow-md"
+                ></button>
             </div>
         </section>
 
-        <!-- Features Bar - সম্পূর্ণ ইমোজি দিয়ে তৈরি -->
         <div class="bg-white border-b border-indigo-100 py-6">
             <div class="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div class="flex items-center gap-3">
@@ -444,7 +505,6 @@ watch(wishlist, (newVal) => {
             </div>
         </div>
 
-        <!-- Featured Products Section -->
         <section v-if="featuredProducts.length" class="max-w-7xl mx-auto px-6 py-20">
             <div class="text-center mb-12">
                 <h2 class="text-4xl md:text-5xl font-black text-slate-900 mb-4">
@@ -498,7 +558,6 @@ watch(wishlist, (newVal) => {
             </div>
         </section>
 
-        <!-- Categories Section -->
         <section v-if="categories.length" id="categories-section" class="max-w-7xl mx-auto px-6 py-20">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
                 <div>
@@ -551,9 +610,7 @@ watch(wishlist, (newVal) => {
             </div>
         </section>
 
-        <!-- Products Section with Filters -->
         <section id="products-section" class="max-w-7xl mx-auto px-6 pb-24">
-            <!-- Filter Bar -->
             <div class="bg-white/70 backdrop-blur-xl rounded-3xl border-2 border-indigo-100/50 shadow-lg p-6 mb-12 sticky top-24 z-40">
                 <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
 
@@ -600,7 +657,6 @@ watch(wishlist, (newVal) => {
                 </div>
             </div>
 
-            <!-- Loading State -->
             <div v-if="loading" class="flex flex-col items-center justify-center py-40">
                 <div class="relative mb-8">
                     <div class="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
@@ -608,7 +664,6 @@ watch(wishlist, (newVal) => {
                 <p class="text-gray-600 font-medium">Loading exclusive collection...</p>
             </div>
 
-            <!-- Products Grid -->
             <div v-else-if="products.length" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                 <div
                     v-for="(product, index) in products"
@@ -673,7 +728,6 @@ watch(wishlist, (newVal) => {
                 </div>
             </div>
 
-            <!-- Empty State -->
             <div v-else class="text-center py-40 bg-white/70 backdrop-blur-xl rounded-3xl border-2 border-indigo-100/50 shadow-lg">
                 <div class="w-32 h-32 mx-auto mb-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center text-6xl">
                     🔍
@@ -692,7 +746,6 @@ watch(wishlist, (newVal) => {
             </div>
         </section>
 
-        <!-- Newsletter Section -->
         <section class="bg-gradient-to-r from-indigo-600 to-purple-600 py-20">
             <div class="max-w-7xl mx-auto px-6 text-center">
                 <h2 class="text-4xl md:text-5xl font-black text-white mb-4">Stay in the Loop</h2>
@@ -718,31 +771,38 @@ watch(wishlist, (newVal) => {
             </div>
         </section>
 
-        <!-- Footer -->
         <footer class="bg-gradient-to-b from-slate-950 to-black text-gray-300 pt-20 pb-12">
             <div class="max-w-7xl mx-auto px-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-16">
                     <div class="lg:col-span-2">
                         <div class="flex items-center gap-3 mb-6">
-                            <span class="text-4xl">🛍️</span>
-                            <span class="font-black text-3xl text-white tracking-tight">E-Shop</span>
+                            <img v-if="getSetting('general', 'site_logo')" :src="getSetting('general', 'site_logo')" class="h-10 w-auto filter brightness-0 invert" alt="Logo">
+                            <span v-else class="font-black text-3xl text-white tracking-tight">{{ getSetting('general', 'site_name', 'E-Shop') }}</span>
                         </div>
                         <p class="text-gray-400 text-sm leading-relaxed mb-6 max-w-md">
-                            Premium shopping experience — curated, secure, delivered fast.
-                            We bring you the best products from around the world at prices you'll love.
+                            {{ getSetting('general', 'site_description', 'Premium shopping experience — curated, secure, delivered fast. We bring you the best products from around the world at prices you\'ll love.') }}
                         </p>
 
                         <div class="flex gap-4">
-                            <a href="#" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-indigo-600 transition-colors text-xl">
+                            <a v-if="getSetting('social', 'facebook')" :href="getSetting('social', 'facebook')" target="_blank" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-blue-600 transition-colors text-xl">
                                 📘
                             </a>
-                            <a href="#" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-indigo-600 transition-colors text-xl">
+                            <a v-if="getSetting('social', 'instagram')" :href="getSetting('social', 'instagram')" target="_blank" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-pink-600 transition-colors text-xl">
                                 📷
                             </a>
-                            <a href="#" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-indigo-600 transition-colors text-xl">
-                                🐦
+                            <a v-if="getSetting('social', 'youtube')" :href="getSetting('social', 'youtube')" target="_blank" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-red-600 transition-colors text-xl">
+                                ▶️
                             </a>
                         </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-white font-bold text-lg mb-6">Contact Info</h3>
+                        <ul class="space-y-3 text-sm">
+                            <li class="flex gap-2"><span>📞</span> {{ getSetting('general', 'phone', '+880123456789') }}</li>
+                            <li class="flex gap-2"><span>✉️</span> {{ getSetting('general', 'email', 'support@eshop.com') }}</li>
+                            <li class="flex gap-2"><span>📍</span> {{ getSetting('general', 'address', 'Dhaka, Bangladesh') }}</li>
+                        </ul>
                     </div>
 
                     <div>
@@ -756,32 +816,21 @@ watch(wishlist, (newVal) => {
                     </div>
 
                     <div>
-                        <h3 class="text-white font-bold text-lg mb-6">Support</h3>
-                        <ul class="space-y-3 text-sm">
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Track Order</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Returns</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">FAQs</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Shipping</a></li>
-                        </ul>
-                    </div>
-
-                    <div>
                         <h3 class="text-white font-bold text-lg mb-6">Legal</h3>
                         <ul class="space-y-3 text-sm">
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Privacy</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Terms</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Cookies</a></li>
+                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Privacy Policy</a></li>
+                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Terms & Conditions</a></li>
+                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Refund Policy</a></li>
                         </ul>
                     </div>
                 </div>
 
                 <div class="pt-10 border-t border-slate-800 text-center text-sm text-gray-500">
-                    © 2026 E-Shop. Built with ❤️ in Bangladesh
+                    {{ getSetting('general', 'copyright', '© 2026 E-Shop. Built with ❤️ in Bangladesh') }}
                 </div>
             </div>
         </footer>
 
-        <!-- Back to Top Button -->
         <button
             v-if="showBackToTop"
             @click="scrollToTop"
@@ -793,6 +842,22 @@ watch(wishlist, (newVal) => {
 </template>
 
 <style scoped>
+/* Slider Fade Animation */
+.slide-fade-enter-active {
+    transition: all 0.6s ease-out;
+}
+.slide-fade-leave-active {
+    transition: all 0.4s cubic-bezier(1, 0.5, 0.8, 1);
+}
+.slide-fade-enter-from {
+    transform: translateX(30px);
+    opacity: 0;
+}
+.slide-fade-leave-to {
+    transform: translateX(-30px);
+    opacity: 0;
+}
+
 @keyframes fadeInUp {
     from {
         opacity: 0;

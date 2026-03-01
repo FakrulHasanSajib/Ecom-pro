@@ -284,4 +284,22 @@ class ProductController extends Controller
         }
         return $path;
     }
+    // 🔥 হোমপেজের ফিচার্ড প্রোডাক্টের জন্য
+    public function getFeatured()
+    {
+        // সর্বশেষ ৮টি একটিভ প্রোডাক্ট ফিচার্ড হিসেবে পাঠানো হচ্ছে
+        $products = Product::where('status', 1)
+                    ->latest()
+                    ->take(8)
+                    ->get()
+                    ->map(function($product) {
+                        $product->thumbnail = asset('storage/' . $product->thumbnail);
+                        return $product;
+                    });
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $products
+        ]);
+    }
 }

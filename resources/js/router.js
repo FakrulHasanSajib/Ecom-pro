@@ -19,6 +19,9 @@ import AdminSiteSettings from './Pages/Admin/SiteSettings/Index.vue';
 import AdminMedia from './Pages/Admin/Media/Index.vue';
 import AdminBanners from './Pages/Admin/Sliders/Index.vue';
 import BannerCategories from './Pages/Admin/Banners/Categories.vue';
+import Brands from './Pages/Admin/Attributes/Brands.vue';
+import Colors from './Pages/Admin/Attributes/Colors.vue';
+import Sizes from './Pages/Admin/Attributes/Sizes.vue';
 
 // ==========================================
 // ২. ফ্রন্টএন্ড/কাস্টমার পেজ ইমপোর্টস
@@ -120,6 +123,9 @@ const routes = [
     name: 'admin.bannerCategories',
     component: BannerCategories
 },
+{ path: '/admin/brands', component: Brands },
+{ path: '/admin/colors', component: Colors },
+{ path: '/admin/sizes', component: Sizes },
 
     // 🔥 নতুন সেটিংস রাউটস
     {
