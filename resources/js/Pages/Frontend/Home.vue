@@ -5,8 +5,6 @@ import axios from 'axios';
 import { useCartStore } from '../../stores/cart';
 import { useAuthStore } from '../../stores/auth';
 import Swal from 'sweetalert2';
-
-// শুধু মাত্র যে আইকনগুলো নিশ্চিতভাবে আছে সেগুলো ইম্পোর্ট করুন
 import {
     SfButton,
     SfIconShoppingCart,
@@ -64,36 +62,26 @@ const isInWishlist = (productId) => {
     return wishlist.value.includes(productId);
 };
 
-// 🔥 Safe Computed Property for Sliders (fixes the .filter error)
+// 🔥 Safe Computed Property for Sliders
 const heroBanners = computed(() => {
     if (!Array.isArray(sliders.value)) return [];
-
     const mainBanners = sliders.value.filter(s => s.category_name === 'Slider' || s.category_name === 'Home Banner');
     return mainBanners.length > 0 ? mainBanners : sliders.value;
 });
 
 // 🔥 Settings Helper Function
-// 🔥 Settings Helper Function (Super Robust & Case-Insensitive)
-// 🔥 Settings Helper Function (Super Robust for Database Matches)
 const normalize = (str) => {
-    // এটি স্পেস, আন্ডারস্কোর, হাইফেন সব মুছে ছোট হাতের অক্ষরে কনভার্ট করবে
     return str ? String(str).replace(/[_-\s]+/g, '').toLowerCase() : '';
 };
 
 const getSetting = (group, key, defaultValue = '') => {
     if (!settings.value) return defaultValue;
-
-    // ১. গ্রুপের নাম মেলানো (general == General)
     const targetGroup = Object.keys(settings.value).find(k => normalize(k) === normalize(group));
-
     if (targetGroup && Array.isArray(settings.value[targetGroup])) {
-        // ২. key বা name কলাম মেলানো (site_name == Site Name)
         const item = settings.value[targetGroup].find(s =>
             normalize(s.key) === normalize(key) ||
             normalize(s.name) === normalize(key)
         );
-
-        // ৩. ভ্যালু থাকলে রিটার্ন করা
         if (item && item.value !== null && item.value !== '') {
             return item.type === 'image' ? item.value_url : item.value;
         }
@@ -118,26 +106,21 @@ const fetchData = async () => {
         if (minPrice.value) params.min_price = minPrice.value;
         if (maxPrice.value) params.max_price = maxPrice.value;
 
-        // API Calls with public routes
+        // Validated catch blocks to return proper fallback objects
         const [prodRes, catRes, featuredRes, sliderRes, settingRes] = await Promise.all([
-            axios.get(`${backendUrl}/api/public/products`, { params }).catch(() => ({ data: { data: [] } })),
+            axios.get(`${backendUrl}/api/public/products`, { params }).catch(() => ({ data: [] })),
             axios.get(`${backendUrl}/api/public/categories`).catch(() => ({ data: [] })),
             axios.get(`${backendUrl}/api/public/products/featured`).catch(() => ({ data: [] })),
             axios.get(`${backendUrl}/api/public/sliders`).catch(() => ({ data: [] })),
-
-            // 🔥 এখানে /admin/settings এর জায়গায় /public/settings দেওয়া হয়েছে
-            axios.get(`${backendUrl}/api/public/settings`).catch(() => ({ data: { data: {} } }))
+            axios.get(`${backendUrl}/api/public/settings`).catch(() => ({ data: {} }))
         ]);
 
         products.value = prodRes.data?.data || [];
         categories.value = catRes.data?.data || catRes.data || [];
         featuredProducts.value = featuredRes.data?.data || featuredRes.data || [];
 
-        // Extract sliders safely
         const rawSliders = sliderRes.data?.data || sliderRes.data || [];
         sliders.value = Array.isArray(rawSliders) ? rawSliders : [];
-
-        // Extract settings safely
         settings.value = settingRes.data?.data || {};
 
     } catch (error) {
@@ -167,7 +150,6 @@ const resetFilters = () => {
 const handleAddToCart = async (product) => {
     try {
         await cartStore.addToCart(product);
-
         const Toast = Swal.mixin({
             toast: true,
             position: 'top-end',
@@ -288,7 +270,7 @@ watch(wishlist, (newVal) => {
             </div>
         </div>
 
-        <header class="bg-white/80 backdrop-blur-xl border-b border-indigo-100/50 sticky top-0 z-50 transition-all duration-300">
+        <header class="bg-white/80 backdrop-blur-xl border-b border-indigo-100/50 sticky top-0 z-50 transition-all duration-300 shadow-lg">
             <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
 
                 <router-link to="/" class="flex items-center gap-3 group">
@@ -368,7 +350,6 @@ watch(wishlist, (newVal) => {
 
             <div class="max-w-7xl mx-auto px-6 py-24 md:py-32 relative z-10">
                 <transition name="slide-fade" mode="out-in">
-
                     <div v-if="heroBanners.length > 0" :key="currentSlide" class="grid lg:grid-cols-2 gap-16 items-center">
                         <div class="text-center lg:text-left">
                             <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-indigo-300 text-sm font-medium mb-8 animate-fade-in-up">
@@ -422,7 +403,7 @@ watch(wishlist, (newVal) => {
                             <h1 class="text-5xl md:text-7xl font-black leading-tight mb-6 animate-fade-in-up animation-delay-200">
                                 Discover
                                 <span class="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Tomorrow's</span>
-                                <br>Style Today
+                                Style Today
                             </h1>
 
                             <p class="text-xl md:text-2xl text-indigo-200/90 max-w-2xl mx-auto lg:mx-0 mb-10 animate-fade-in-up animation-delay-400">
@@ -734,8 +715,7 @@ watch(wishlist, (newVal) => {
                 </div>
                 <h3 class="text-3xl font-black text-slate-800 mb-4">No Products Found</h3>
                 <p class="text-gray-600 text-lg max-w-md mx-auto mb-8">
-                    We couldn't find any products matching your criteria.
-                    <br>Try adjusting your filters.
+                    We couldn't find any products matching your criteria. Try adjusting your filters.
                 </p>
                 <button
                     @click="resetFilters"
