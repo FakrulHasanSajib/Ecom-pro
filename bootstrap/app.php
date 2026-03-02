@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // ১. Stateful API (লারাভেল ১২ এ 401 Unauthorized ফিক্স করার জন্য মাস্ট)
         // এটি আপনার api.php রাউটগুলোতে ব্রাউজার সেশন এবং কুকি ব্যবহারের অনুমতি দেবে
         $middleware->statefulApi();
+        $middleware->append(\App\Http\Middleware\CheckBlockedIp::class);
 
         // ২. Web Middleware (Inertia setup)
         $middleware->web(append: [

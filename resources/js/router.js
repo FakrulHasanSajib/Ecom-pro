@@ -22,6 +22,7 @@ import BannerCategories from './Pages/Admin/Banners/Categories.vue';
 import Brands from './Pages/Admin/Attributes/Brands.vue';
 import Colors from './Pages/Admin/Attributes/Colors.vue';
 import Sizes from './Pages/Admin/Attributes/Sizes.vue';
+import BlockedIps from '@/Pages/Admin/Security/BlockedIps.vue';
 
 // ==========================================
 // ২. ফ্রন্টএন্ড/কাস্টমার পেজ ইমপোর্টস
@@ -166,6 +167,12 @@ const routes = [
         name: 'admin.order-statuses.index',
         component: AdminOrderStatus
     },
+    {
+    path: '/admin/blocked-ips',
+    name: 'admin.blocked-ips',
+    component: BlockedIps,
+    meta: { requiresAuth: true }
+},
 
     // ==========================================
     // --- 404 Not Found (এটি সবসময় একদম শেষে থাকতে হবে) ---

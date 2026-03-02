@@ -1,3 +1,577 @@
+<template>
+    <div class="min-h-screen bg-gray-50 font-sans overflow-x-hidden">
+        <!-- Loading Overlay -->
+        <div v-if="initialLoading" class="fixed inset-0 bg-gradient-to-br from-indigo-950 to-purple-950 z-[100] flex items-center justify-center">
+            <div class="text-center">
+                <div class="relative mb-8">
+                    <div class="w-32 h-32 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span class="text-4xl animate-bounce">🛍️</span>
+                    </div>
+                </div>
+                <h2 class="text-3xl font-black text-white mb-3">{{ getSetting('general', 'site_name', 'E-Shop') }}</h2>
+                <p class="text-indigo-300/80">Loading amazing products for you...</p>
+            </div>
+        </div>
+
+        <!-- Header -->
+        <header id="navbar_top" class="bg-white shadow-sm sticky top-0 z-50 w-full">
+            <!-- Mobile Header -->
+            <div class="lg:hidden">
+                <div class="mobile-header sticky">
+                    <div class="mobile-logo flex items-center justify-between p-4 border-b">
+                        <button @click="toggleMobileMenu" class="menu-bar text-2xl">
+                            <i class="bi" :class="isMenuOpen ? 'bi-x-lg' : 'bi-list'"></i>
+                        </button>
+                        <router-link to="/" class="menu-logo">
+                            <img v-if="getSetting('general', 'white_logo')"
+                                 :src="getImageUrl(getSetting('general', 'white_logo'))"
+                                 class="h-10 w-auto" alt="Logo">
+                            <span v-else class="font-bold text-xl">{{ getSetting('general', 'name', 'E-Shop') }}</span>
+                        </router-link>
+                        <router-link to="/checkout" class="menu-bag relative text-2xl">
+                            <i class="bi bi-cart3"></i>
+                            <span v-if="cartCount" class="mobilecart-qty absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                {{ cartCount }}
+                            </span>
+                        </router-link>
+                    </div>
+
+                    <!-- Mobile Search -->
+                    <div class="mobile-search p-4 bg-gray-100">
+                        <form @submit.prevent class="flex">
+                            <input v-model="searchKeyword" type="text" placeholder="Search Product..."
+                                   class="msearch_keyword flex-1 px-4 py-2 rounded-l-full border focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <button type="submit" class="bg-indigo-600 text-white px-6 rounded-r-full">
+                                <i class="bi bi-search"></i>
+                            </button>
+                        </form>
+                        <div class="search_result mt-2 absolute bg-white shadow-lg rounded-lg w-full max-w-md z-50"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Desktop Header -->
+            <div class="hidden lg:block main-header">
+                <!-- Top Header -->
+                <div class="logo-area">
+                    <div class="container mx-auto px-4 py-4">
+                        <div class="logo-header flex items-center justify-between">
+                            <!-- Logo -->
+                            <div class="main-logo">
+                                <router-link to="/">
+                                    <img v-if="getSetting('general', 'white_logo')"
+                                         :src="getImageUrl(getSetting('general', 'white_logo'))"
+                                         class="h-16 w-auto" alt="Logo">
+                                </router-link>
+                            </div>
+
+                            <!-- Search -->
+                            <div class="main-search flex-1 max-w-xl mx-10">
+                                <form @submit.prevent class="flex relative">
+                                    <input v-model="searchKeyword" type="text" placeholder="Search Product..."
+                                           class="search_keyword flex-1 px-4 py-3 rounded-l-full border focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                    <button type="submit" class="bg-indigo-600 text-white px-8 rounded-r-full hover:bg-indigo-700 transition">
+                                        <i class="bi bi-search"></i>
+                                    </button>
+                                    <div class="search_result absolute top-full left-0 right-0 mt-2 bg-white shadow-lg rounded-lg z-50 max-h-96 overflow-y-auto"></div>
+                                </form>
+                            </div>
+
+                            <!-- Header Actions -->
+                            <div class="header-list-items">
+                                <ul class="flex items-center gap-6">
+                                    <!-- Track Order -->
+                                    <li class="track_btn">
+                                        <router-link to="/track-order" class="text-gray-700 hover:text-indigo-600 flex items-center gap-2">
+                                            <i class="bi bi-truck"></i>
+                                            <span>Track Order</span>
+                                        </router-link>
+                                    </li>
+
+                                    <!-- User Account -->
+                                    <li class="for_order">
+                                        <template v-if="!authStore.isAuthenticated">
+                                            <router-link to="/login" class="text-gray-700 hover:text-indigo-600 flex items-center gap-2">
+                                                <i class="bi bi-person-circle"></i>
+                                                <span>Login / Sign Up</span>
+                                            </router-link>
+                                        </template>
+                                        <template v-else>
+                                            <router-link to="/account" class="text-gray-700 hover:text-indigo-600 flex items-center gap-2">
+                                                <i class="bi bi-person-circle"></i>
+                                                <span>{{ authStore.user?.name?.substring(0, 14) || 'Account' }}</span>
+                                            </router-link>
+                                        </template>
+                                    </li>
+
+                                    <!-- Cart with Dropdown -->
+                                    <li class="cart-dialog relative group" id="cart-qty">
+                                        <router-link to="/checkout" class="text-gray-700 hover:text-indigo-600">
+                                            <p class="margin-shopping relative">
+                                                <i class="bi bi-cart3 text-2xl"></i>
+                                                <span class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                                    {{ cartCount }}
+                                                </span>
+                                            </p>
+                                        </router-link>
+
+                                        <!-- Cart Summary Dropdown -->
+                                        <div class="cshort-summary absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl border hidden group-hover:block z-50">
+                                            <ul class="p-4 max-h-96 overflow-y-auto">
+                                                <template v-if="cartStore.items.length">
+                                                    <li v-for="item in cartStore.items" :key="item.id" class="flex gap-3 py-2 border-b">
+                                                        <router-link :to="`/product/${item.id}`">
+                                                            <img :src="getImageUrl(item.thumbnail)" class="w-16 h-16 object-cover rounded">
+                                                        </router-link>
+                                                        <div class="flex-1">
+                                                            <router-link :to="`/product/${item.id}`" class="font-medium text-sm hover:text-indigo-600">
+                                                                {{ item.name.substring(0, 30) }}
+                                                            </router-link>
+                                                            <p class="text-sm">Qty: {{ item.quantity }}</p>
+                                                            <p class="text-indigo-600 font-bold">৳{{ item.price }}</p>
+                                                        </div>
+                                                        <button @click.stop="removeFromCart(item.id)" class="text-gray-400 hover:text-red-500">
+                                                            <i class="bi bi-x-lg"></i>
+                                                        </button>
+                                                    </li>
+                                                    <li class="mt-3 pt-3 border-t">
+                                                        <p class="font-bold text-right">সর্বমোট: ৳{{ cartSubtotal }}</p>
+                                                        <router-link to="/checkout" class="go_cart block text-center bg-indigo-600 text-white py-2 rounded-lg mt-3 hover:bg-indigo-700">
+                                                            অর্ডার করুন
+                                                        </router-link>
+                                                    </li>
+                                                </template>
+                                                <li v-else class="text-center py-4 text-gray-500">
+                                                    Your cart is empty
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation Bar -->
+                <nav class="navbar navbar-expand-lg" :style="{ backgroundColor: getSetting('general', 'headercolor', '#4f46e5') }">
+                    <div class="container mx-auto px-4">
+                        <div class="flex items-center w-full">
+                            <!-- Categories Dropdown -->
+                            <div class="dropdown relative">
+                                <button class="btn dropdown-toggle text-white px-4 py-3 flex items-center gap-2 hover:bg-white/10 rounded-lg"
+                                        :style="{ backgroundColor: getSetting('general', 'headercolor', '#4f46e5') }">
+                                    <span>Categories</span>
+                                    <small class="text-xs opacity-75">(See All)</small>
+                                    <i class="bi bi-chevron-down"></i>
+                                </button>
+                                <ul class="dropdown-menu absolute left-0 mt-1 w-64 bg-white rounded-lg shadow-xl border hidden group-hover:block z-40">
+                                    <li v-for="cat in menucategories" :key="cat.id">
+                                        <router-link :to="`/category/${cat.slug}`"
+                                                     class="block px-4 py-2 hover:bg-gray-100 border-b last:border-0">
+                                            {{ cat.name }}
+                                        </router-link>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <!-- Header Menu -->
+                            <button class="navbar-toggler lg:hidden text-white ml-4" type="button">
+                                <span class="navbar-toggler-icon"></span>
+                            </button>
+                            <div class="collapse navbar-collapse flex-1" id="mainNav">
+                                <ul class="navbar-nav flex items-center gap-1 ml-4">
+                                    <li v-for="item in headerMenu" :key="item.label" class="nav-item">
+                                        <router-link :to="item.url"
+                                                     class="nav-link text-white px-4 py-3 hover:bg-white/10 transition block">
+                                            {{ item.label }}
+                                        </router-link>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <!-- Cart Total (Desktop) -->
+                            <div class="text-white ml-auto hidden lg:block">
+                                <i class="bi bi-cart3 mr-2"></i>
+                                ৳{{ cartSubtotal }} <small class="text-xs opacity-75">({{ cartCount }} items)</small>
+                            </div>
+                        </div>
+                    </div>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Mobile Menu -->
+        <div v-if="isMenuOpen" class="fixed inset-0 bg-black/50 z-40" @click="toggleMobileMenu"></div>
+        <div :class="['mobile-menu fixed top-0 left-0 h-full w-80 bg-white z-50 transform transition-transform duration-300', isMenuOpen ? 'translate-x-0' : '-translate-x-full']">
+            <div class="mobile-menu-logo p-4 border-b flex items-center justify-between">
+                <div class="logo-image">
+                    <img v-if="getSetting('general', 'white_logo')" :src="getImageUrl(getSetting('general', 'white_logo'))" class="h-10">
+                </div>
+                <button @click="toggleMobileMenu" class="mobile-menu-close text-2xl">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <ul class="first-nav p-4 overflow-y-auto h-full">
+                <li v-for="cat in menucategories" :key="cat.id" class="parent-category mb-2">
+                    <router-link :to="`/category/${cat.slug}`" class="menu-category-name flex items-center py-2 hover:text-indigo-600" @click="toggleMobileMenu">
+                        <img v-if="cat.image" :src="getImageUrl(cat.image)" class="side_cat_img w-6 h-6 mr-2 object-contain" alt="">
+                        {{ cat.name }}
+                    </router-link>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Main Content -->
+        <div id="content" class="w-full overflow-x-hidden">
+            <!-- Hero Slider Section -->
+            <section class="relative bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 text-white overflow-hidden min-h-[500px] w-full">
+                <div class="absolute inset-0">
+                    <div class="absolute inset-0 opacity-20" style="background-image: url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%239C92AC\' fill-opacity=\'0.05\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');"></div>
+                </div>
+
+                <div class="max-w-7xl mx-auto px-4 py-24 md:py-32 relative z-10">
+                    <transition name="slide-fade" mode="out-in">
+                        <div v-if="heroBanners.length > 0" :key="currentSlide" class="grid lg:grid-cols-2 gap-8 items-center">
+                            <div class="text-center lg:text-left">
+                                <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-indigo-300 text-sm font-medium mb-8">
+                                    <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                                    {{ heroBanners[currentSlide].category_name || 'New Collection' }}
+                                </div>
+
+                                <h1 class="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
+                                    {{ heroBanners[currentSlide].title || 'Discover Amazing Products' }}
+                                </h1>
+
+                                <p class="text-lg md:text-xl text-indigo-200/90 max-w-2xl mx-auto lg:mx-0 mb-10">
+                                    {{ heroBanners[currentSlide].description || 'Premium curated products. Exceptional quality. Prices you\'ll love.' }}
+                                </p>
+
+                                <div class="flex flex-wrap gap-4 justify-center lg:justify-start">
+                                    <a :href="heroBanners[currentSlide].link || '/shop'"
+                                       class="bg-white text-indigo-950 hover:bg-gray-100 shadow-2xl shadow-indigo-500/30 rounded-full px-8 py-4 text-lg font-semibold transition-all hover:scale-105 group inline-flex items-center">
+                                        Shop Now
+                                        <span class="ml-2 group-hover:translate-x-1 transition-transform">→</span>
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div class="relative hidden lg:block">
+                                <img :src="heroBanners[currentSlide].image_url"
+                                     class="rounded-2xl shadow-2xl object-cover w-full h-[400px] transform hover:scale-105 transition-transform duration-1000"
+                                     alt="Hero Product">
+                            </div>
+                        </div>
+
+                        <div v-else class="grid lg:grid-cols-2 gap-8 items-center">
+                            <div class="text-center lg:text-left">
+                                <h1 class="text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-6">
+                                    Discover
+                                    <span class="text-indigo-400">Amazing</span>
+                                    <br>Products Here
+                                </h1>
+                                <p class="text-lg md:text-xl text-indigo-200/90 mb-10">
+                                    Shop the best products at the best prices
+                                </p>
+                                <router-link to="/shop" class="bg-white text-indigo-950 rounded-full px-8 py-4 text-lg font-semibold hover:bg-gray-100 transition-all inline-flex items-center">
+                                    Shop Now →
+                                </router-link>
+                            </div>
+                            <div class="relative hidden lg:block">
+                                <img src="https://images.unsplash.com/photo-1523275335684-37881b6dc50b?q=80&w=1200&auto=format&fit=crop"
+                                     class="rounded-2xl shadow-2xl w-full h-[400px] object-cover" alt="Hero">
+                            </div>
+                        </div>
+                    </transition>
+                </div>
+
+                <!-- Slider Dots -->
+                <div v-if="heroBanners.length > 1" class="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 z-20">
+                    <button v-for="(_, index) in heroBanners" :key="index" @click="currentSlide = index"
+                            :class="currentSlide === index ? 'w-10 bg-indigo-500' : 'w-3 bg-white/50 hover:bg-white/80'"
+                            class="h-3 rounded-full transition-all duration-500"></button>
+                </div>
+            </section>
+
+            <!-- Featured Products -->
+            <section v-if="featuredProducts.length" class="max-w-7xl mx-auto px-4 py-16">
+                <div class="section-title text-center mb-12">
+                    <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Featured Products</h2>
+                    <p class="text-gray-600">Handpicked just for you</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div v-for="product in featuredProducts.slice(0, 4)" :key="product.id"
+                         class="product-card bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition cursor-pointer"
+                         @click="navigateToProduct(product.id)">
+                        <div class="relative h-48 bg-gray-100 p-4">
+                            <img :src="getImageUrl(product.thumbnail)" class="w-full h-full object-contain" alt="">
+                            <span v-if="product.offer_price" class="discount-badge absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
+                                -{{ Math.round((product.base_price - product.offer_price) / product.base_price * 100) }}%
+                            </span>
+                        </div>
+                        <div class="p-4">
+                            <h3 class="product-title font-semibold text-gray-900 mb-2 line-clamp-2">{{ product.name }}</h3>
+                            <div class="product-price flex items-center justify-between">
+                                <div>
+                                    <span class="text-xl font-bold text-indigo-600">৳{{ product.offer_price || product.base_price }}</span>
+                                    <span v-if="product.offer_price" class="old-price ml-2 text-sm text-gray-400 line-through">৳{{ product.base_price }}</span>
+                                </div>
+                                <button @click.stop="handleAddToCart(product)"
+                                        class="addcartbutton bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition">
+                                    <i class="bi bi-cart-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Categories Section -->
+            <section v-if="categories.length" class="bg-gray-100 py-16">
+                <div class="max-w-7xl mx-auto px-4">
+                    <div class="section-title text-center mb-12">
+                        <h2 class="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Shop by Category</h2>
+                        <p class="text-gray-600">Explore our wide range of categories</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                        <div v-for="cat in categories.slice(0, 6)" :key="cat.id"
+                             @click="filterByCategory(cat.slug)"
+                             class="category-card bg-white rounded-lg p-4 text-center shadow-sm hover:shadow-md transition cursor-pointer">
+                            <img v-if="cat.image" :src="getImageUrl(cat.image)" class="h-16 mx-auto mb-3 object-contain" alt="">
+                            <div v-else class="h-16 w-16 mx-auto mb-3 bg-gray-200 rounded-full flex items-center justify-center text-2xl">
+                                📦
+                            </div>
+                            <h3 class="font-medium text-gray-900">{{ cat.name }}</h3>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- All Products Section -->
+            <section id="products-section" class="max-w-7xl mx-auto px-4 py-16">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-8">
+                    <h2 class="text-2xl font-bold text-gray-900 mb-4 md:mb-0">All Products</h2>
+
+                    <div class="flex gap-4">
+                        <select v-model="sortOption" @change="fetchData"
+                                class="border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="">Sort: Featured</option>
+                            <option value="price_low">Price: Low to High</option>
+                            <option value="price_high">Price: High to Low</option>
+                            <option value="newest">Newest First</option>
+                        </select>
+
+                        <button v-if="activeFilterCount" @click="resetFilters"
+                                class="bg-red-50 text-red-600 px-4 py-2 rounded-lg hover:bg-red-100 transition">
+                            Clear ({{ activeFilterCount }})
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Products Grid -->
+                <div v-if="loading" class="text-center py-16">
+                    <div class="custom-loader inline-block w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+
+                <div v-else-if="products.length" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div v-for="product in products" :key="product.id"
+                         class="product-card bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition cursor-pointer"
+                         @click="navigateToProduct(product.id)">
+                        <div class="relative h-48 bg-gray-100 p-4">
+                            <img :src="getImageUrl(product.thumbnail)" class="w-full h-full object-contain" alt="">
+                            <span v-if="product.offer_price" class="discount-badge absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
+                                -{{ Math.round((product.base_price - product.offer_price) / product.base_price * 100) }}%
+                            </span>
+                            <button @click.stop="toggleWishlist(product.id)"
+                                    class="absolute top-2 right-2 w-8 h-8 bg-white rounded-full shadow flex items-center justify-center hover:bg-red-50">
+                                <i :class="isInWishlist(product.id) ? 'bi bi-heart-fill text-red-500' : 'bi bi-heart text-gray-400'"></i>
+                            </button>
+                        </div>
+                        <div class="p-4">
+                            <p class="text-xs text-indigo-600 font-semibold uppercase mb-1">{{ product.category?.name || 'Product' }}</p>
+                            <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2">{{ product.name }}</h3>
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <span class="text-xl font-bold text-indigo-600">৳{{ product.offer_price || product.base_price }}</span>
+                                    <span v-if="product.offer_price" class="old-price ml-2 text-sm text-gray-400 line-through">৳{{ product.base_price }}</span>
+                                </div>
+                                <button @click.stop="handleAddToCart(product)"
+                                        class="cart_store bg-indigo-600 text-white p-2 rounded-lg hover:bg-indigo-700 transition">
+                                    <i class="bi bi-cart-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div v-else class="text-center py-16">
+                    <p class="text-gray-500">No products found</p>
+                </div>
+            </section>
+        </div>
+
+        <!-- Footer -->
+        <footer class="text-white w-full overflow-x-hidden">
+            <!-- Footer Top -->
+            <div class="footer-shape-1 py-12" :style="{ backgroundColor: getSetting('general', 'footer_color_1', '#1a1a1a') }">
+                <div class="container mx-auto px-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <!-- About -->
+                        <div class="footer-about">
+                            <router-link to="/" class="inline-block mb-4">
+                                <img v-if="getSetting('general', 'white_logo')"
+                                     :src="getImageUrl(getSetting('general', 'white_logo'))"
+                                     class="h-12 w-auto brightness-0 invert" alt="Logo">
+                            </router-link>
+                            <p class="text-gray-300">
+                                {{ getSetting('general', 'name', 'E-Shop') }} – Where Quality Meets Affordability.
+                            </p>
+                        </div>
+
+                        <!-- Social Icons -->
+                        <div>
+                            <div class="flex gap-3 mb-4">
+                                <a v-for="icon in socialicons" :key="icon.id" :href="icon.link" target="_blank"
+                                   class="w-10 h-10 border border-gray-400 rounded-full flex items-center justify-center hover:bg-white hover:text-gray-900 transition">
+                                    <i :class="icon.icon"></i>
+                                </a>
+                            </div>
+                            <p class="text-gray-300">Follow our social media to get regular updates.</p>
+                        </div>
+
+                        <!-- App Stores -->
+                        <div>
+                            <div class="flex gap-2 mb-4">
+                                <img src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg"
+                                     class="h-10" alt="Google Play">
+                                <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
+                                     class="h-10" alt="App Store">
+                            </div>
+                            <p class="text-gray-300">Keep our apps with you to get the best offers.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Middle -->
+            <div class="footer-shape-2 py-12" :style="{ backgroundColor: getSetting('general', 'footer_color_2', '#0e4f35') }">
+                <div class="container mx-auto px-4">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                        <!-- Quick Links -->
+                        <div>
+                            <h6 class="text-white font-bold mb-4">Quick Links</h6>
+                            <ul class="space-y-2">
+                                <li v-for="item in headerFooter" :key="item.labels">
+                                    <router-link :to="item.urls" class="text-gray-300 hover:text-white transition">
+                                        {{ item.labels }}
+                                    </router-link>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <!-- Contacts -->
+                        <div>
+                            <h6 class="text-white font-bold mb-4">Contacts</h6>
+                            <p class="text-gray-300 mb-2">Address: {{ contact.address || 'N/A' }}</p>
+                            <p class="text-gray-300 mb-2">Phone: {{ contact.phone || 'N/A' }}</p>
+                            <p class="text-gray-300">Email: {{ contact.hotmail || 'N/A' }}</p>
+                        </div>
+
+                        <!-- My Account -->
+                        <div>
+                            <h6 class="text-white font-bold mb-4">My Account</h6>
+                            <ul class="space-y-2">
+                                <li><router-link to="/login" class="text-gray-300 hover:text-white transition">Login</router-link></li>
+                                <li><router-link to="/order-history" class="text-gray-300 hover:text-white transition">Order History</router-link></li>
+                                <li><router-link to="/wishlist" class="text-gray-300 hover:text-white transition">My Wishlist</router-link></li>
+                                <li><router-link to="/track-order" class="text-gray-300 hover:text-white transition">Track Order</router-link></li>
+                            </ul>
+                        </div>
+
+                        <!-- Seller Zone -->
+                        <div>
+                            <h6 class="text-white font-bold mb-4">Seller Zone</h6>
+                            <ul class="space-y-2">
+                                <li><a href="#" class="text-gray-300 hover:text-white transition">Become A Reseller</a></li>
+                                <li><a href="#" class="text-gray-300 hover:text-white transition">Become A Wholeseller</a></li>
+                                <li><a href="#" class="text-gray-300 hover:text-white transition">Become A Partner</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer Bottom -->
+            <div class="footer-shape-3 py-4" :style="{ backgroundColor: getSetting('general', 'footer_color_3', '#082e1f') }">
+                <div class="container mx-auto px-4">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-300">
+                        <div>Copyright © {{ new Date().getFullYear() }} {{ getSetting('general', 'name', 'E-Shop') }}</div>
+                        <div>Powered by: <a :href="getSetting('general', 'footer_link', 'https://eiconbd.com/')" target="_blank" class="text-white hover:underline">{{ getSetting('general', 'footer_text', 'EiconBD') }}</a></div>
+                        <div class="flex items-center gap-2">
+                            Payment: <img src="https://i.postimg.cc/8kQ0qR0P/bkash-logo.png" class="h-5" alt="Payments">
+                        </div>
+                        <div class="flex items-center gap-2">
+                            Delivery: <img src="https://i.postimg.cc/Z5y4wMqP/Shipping.png" class="h-5" alt="Shipping">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </footer>
+
+        <!-- Mobile Bottom Navigation -->
+        <div class="footer_nav lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-40">
+            <ul class="grid grid-cols-4 gap-1 p-2">
+                <li>
+                    <button @click="toggleMobileMenu" class="flex flex-col items-center text-gray-600 hover:text-indigo-600 w-full">
+                        <i class="bi bi-grid text-xl"></i>
+                        <span class="text-xs">Category</span>
+                    </button>
+                </li>
+                <li>
+                    <a :href="`https://wa.me/${contact.whatsapp || ''}`" target="_blank" class="flex flex-col items-center text-gray-600 hover:text-indigo-600">
+                        <i class="bi bi-chat-dots text-xl"></i>
+                        <span class="text-xs">Message</span>
+                    </a>
+                </li>
+                <li class="mobile_home">
+                    <router-link to="/" class="flex flex-col items-center text-gray-600 hover:text-indigo-600">
+                        <i class="bi bi-house-door text-xl"></i>
+                        <span class="text-xs">Home</span>
+                    </router-link>
+                </li>
+                <li>
+                    <router-link to="/checkout" class="flex flex-col items-center text-gray-600 hover:text-indigo-600 relative">
+                        <i class="bi bi-cart3 text-xl"></i>
+                        <span v-if="cartCount" class="mobilecart-qty absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                            {{ cartCount }}
+                        </span>
+                        <span class="text-xs">Cart</span>
+                    </router-link>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Back to Top Button -->
+        <div class="scrolltop fixed bottom-20 lg:bottom-8 right-4 z-40">
+            <button v-if="showBackToTop" @click="scrollToTop"
+                    class="scroll w-12 h-12 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition flex items-center justify-center">
+                <i class="bi bi-arrow-up"></i>
+            </button>
+        </div>
+
+        <!-- Page Overlay -->
+        <div id="page-overlay" v-if="isMenuOpen" class="fixed inset-0 bg-black/50 z-30" @click="toggleMobileMenu"></div>
+
+        <!-- Loading Spinner -->
+        <div id="loading" v-if="loading" class="fixed inset-0 bg-white/80 z-50 flex items-center justify-center">
+            <div class="custom-loader w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+    </div>
+</template>
+
 <script setup>
 import { ref, onMounted, watch, computed, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
@@ -5,21 +579,6 @@ import axios from 'axios';
 import { useCartStore } from '../../stores/cart';
 import { useAuthStore } from '../../stores/auth';
 import Swal from 'sweetalert2';
-
-// শুধু মাত্র যে আইকনগুলো নিশ্চিতভাবে আছে সেগুলো ইম্পোর্ট করুন
-import {
-    SfButton,
-    SfIconShoppingCart,
-    SfIconFavorite,
-    SfIconFavoriteFilled,
-    SfLoaderCircular,
-    SfIconPerson,
-    SfIconSearch,
-    SfIconClose,
-    SfIconStar,
-    SfIconPackage,
-    SfIconLocalShipping
-} from '@storefront-ui/vue';
 
 const router = useRouter();
 const cartStore = useCartStore();
@@ -33,11 +592,21 @@ const loading = ref(true);
 const initialLoading = ref(true);
 const wishlist = ref([]);
 const showBackToTop = ref(false);
+const isMenuOpen = ref(false);
+const searchKeyword = ref('');
 
-// 🔥 Dynamic Sliders & Settings State
+// Dynamic Data
 const sliders = ref([]);
 const currentSlide = ref(0);
 const settings = ref({});
+const menucategories = ref([]);
+const headerMenu = ref([]);
+const headerFooter = ref([]);
+const socialicons = ref([]);
+const contact = ref({});
+const pixels = ref([]);
+const gtm = ref(null);
+const activeTiktokPixel = ref(null);
 
 // Filters
 const searchQuery = ref('');
@@ -45,7 +614,6 @@ const selectedCategory = ref(null);
 const sortOption = ref('');
 const minPrice = ref('');
 const maxPrice = ref('');
-const priceRange = ref([0, 100000]);
 
 // Backend URL
 const backendUrl = 'http://127.0.0.1:73';
@@ -64,49 +632,50 @@ const isInWishlist = (productId) => {
     return wishlist.value.includes(productId);
 };
 
-// 🔥 Safe Computed Property for Sliders (fixes the .filter error)
 const heroBanners = computed(() => {
     if (!Array.isArray(sliders.value)) return [];
-
     const mainBanners = sliders.value.filter(s => s.category_name === 'Slider' || s.category_name === 'Home Banner');
     return mainBanners.length > 0 ? mainBanners : sliders.value;
 });
 
-// 🔥 Settings Helper Function
-// 🔥 Settings Helper Function (Super Robust & Case-Insensitive)
-// 🔥 Settings Helper Function (Super Robust for Database Matches)
+const cartCount = computed(() => cartStore.items.length);
+const cartSubtotal = computed(() => {
+    return cartStore.items.reduce((total, item) => total + (item.price * item.quantity), 0);
+});
+
+// Helper Functions
 const normalize = (str) => {
-    // এটি স্পেস, আন্ডারস্কোর, হাইফেন সব মুছে ছোট হাতের অক্ষরে কনভার্ট করবে
     return str ? String(str).replace(/[_-\s]+/g, '').toLowerCase() : '';
 };
 
 const getSetting = (group, key, defaultValue = '') => {
     if (!settings.value) return defaultValue;
-
-    // ১. গ্রুপের নাম মেলানো (general == General)
     const targetGroup = Object.keys(settings.value).find(k => normalize(k) === normalize(group));
-    
+
     if (targetGroup && Array.isArray(settings.value[targetGroup])) {
-        // ২. key বা name কলাম মেলানো (site_name == Site Name)
-        const item = settings.value[targetGroup].find(s => 
-            normalize(s.key) === normalize(key) || 
+        const item = settings.value[targetGroup].find(s =>
+            normalize(s.key) === normalize(key) ||
             normalize(s.name) === normalize(key)
         );
-        
-        // ৩. ভ্যালু থাকলে রিটার্ন করা
+
         if (item && item.value !== null && item.value !== '') {
             return item.type === 'image' ? item.value_url : item.value;
         }
     }
-    return defaultValue; 
+    return defaultValue;
 };
 
-// Methods
 const getImageUrl = (path) => {
     if (!path) return 'https://placehold.co/600x400?text=No+Image';
     return path.startsWith('http') ? path : `${backendUrl}/storage/${path}`;
 };
 
+// Remove from cart function
+const removeFromCart = (itemId) => {
+    cartStore.removeFromCart(itemId);
+};
+
+// Fetch all data
 const fetchData = async () => {
     try {
         loading.value = true;
@@ -118,27 +687,48 @@ const fetchData = async () => {
         if (minPrice.value) params.min_price = minPrice.value;
         if (maxPrice.value) params.max_price = maxPrice.value;
 
-        // API Calls with public routes
-        const [prodRes, catRes, featuredRes, sliderRes, settingRes] = await Promise.all([
+        const [
+            prodRes, catRes, featuredRes, sliderRes, settingRes,
+            menuCatRes, headerMenuRes, footerMenuRes, socialRes,
+            contactRes, pixelRes, gtmRes
+        ] = await Promise.all([
             axios.get(`${backendUrl}/api/public/products`, { params }).catch(() => ({ data: { data: [] } })),
             axios.get(`${backendUrl}/api/public/categories`).catch(() => ({ data: [] })),
             axios.get(`${backendUrl}/api/public/products/featured`).catch(() => ({ data: [] })),
             axios.get(`${backendUrl}/api/public/sliders`).catch(() => ({ data: [] })),
-            
-            // 🔥 এখানে /admin/settings এর জায়গায় /public/settings দেওয়া হয়েছে
-            axios.get(`${backendUrl}/api/public/settings`).catch(() => ({ data: { data: {} } }))
+            axios.get(`${backendUrl}/api/public/settings`).catch(() => ({ data: { data: {} } })),
+            axios.get(`${backendUrl}/api/public/menu-categories`).catch(() => ({ data: [] })),
+            axios.get(`${backendUrl}/api/public/header-menu`).catch(() => ({ data: [] })),
+            axios.get(`${backendUrl}/api/public/footer-menu`).catch(() => ({ data: [] })),
+            axios.get(`${backendUrl}/api/public/social-icons`).catch(() => ({ data: [] })),
+            axios.get(`${backendUrl}/api/public/contact`).catch(() => ({ data: {} })),
+            axios.get(`${backendUrl}/api/public/pixels`).catch(() => ({ data: [] })),
+            axios.get(`${backendUrl}/api/public/gtm`).catch(() => ({ data: null }))
         ]);
 
         products.value = prodRes.data?.data || [];
         categories.value = catRes.data?.data || catRes.data || [];
         featuredProducts.value = featuredRes.data?.data || featuredRes.data || [];
-        
-        // Extract sliders safely
+
         const rawSliders = sliderRes.data?.data || sliderRes.data || [];
         sliders.value = Array.isArray(rawSliders) ? rawSliders : [];
 
-        // Extract settings safely
         settings.value = settingRes.data?.data || {};
+        menucategories.value = menuCatRes.data || [];
+        headerMenu.value = headerMenuRes.data || [];
+        headerFooter.value = footerMenuRes.data || [];
+        socialicons.value = socialRes.data || [];
+        contact.value = contactRes.data || {};
+        pixels.value = pixelRes.data || [];
+        gtm.value = gtmRes.data || null;
+
+        // TikTok Pixel separate kora
+        if (pixels.value.length > 0) {
+            const tiktok = pixels.value.find(p => p.platform === 'tiktok' && p.status === 1);
+            if (tiktok) {
+                activeTiktokPixel.value = { pixel_id: tiktok.code };
+            }
+        }
 
     } catch (error) {
         console.error("Data fetch error:", error);
@@ -148,10 +738,11 @@ const fetchData = async () => {
     }
 };
 
+// Methods
 const filterByCategory = (slug) => {
     selectedCategory.value = selectedCategory.value === slug ? null : slug;
     fetchData();
-    document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth' });
 };
 
 const resetFilters = () => {
@@ -160,7 +751,6 @@ const resetFilters = () => {
     sortOption.value = '';
     minPrice.value = '';
     maxPrice.value = '';
-    priceRange.value = [0, 100000];
     fetchData();
 };
 
@@ -168,19 +758,39 @@ const handleAddToCart = async (product) => {
     try {
         await cartStore.addToCart(product);
 
+        // Facebook Pixel AddToCart Event
+        if (window.fbq) {
+            fbq('track', 'AddToCart', {
+                content_ids: [product.id],
+                content_type: 'product',
+                value: product.offer_price || product.base_price,
+                currency: 'BDT'
+            });
+        }
+
+        // TikTok Pixel AddToCart Event
+        if (window.ttq) {
+            ttq.track('AddToCart', {
+                content_id: product.id,
+                content_type: 'product',
+                value: product.offer_price || product.base_price,
+                currency: 'BDT'
+            });
+        }
+
         const Toast = Swal.mixin({
             toast: true,
             position: 'top-end',
             showConfirmButton: false,
             timer: 2000,
-            timerProgressBar: true
+            timerProgressBar: true,
+            background: '#1e1e2f',
+            color: '#fff'
         });
 
         Toast.fire({
             icon: 'success',
-            title: `<span class="text-sm font-medium">${product.name} added to cart</span>`,
-            background: '#1e1e2f',
-            color: '#fff'
+            title: `${product.name} added to cart`
         });
 
     } catch (error) {
@@ -230,7 +840,16 @@ const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
-// 🔥 Auto Slider Timer Logic
+const toggleMobileMenu = () => {
+    isMenuOpen.value = !isMenuOpen.value;
+    if (isMenuOpen.value) {
+        document.body.style.overflow = 'hidden';
+    } else {
+        document.body.style.overflow = 'auto';
+    }
+};
+
+// Auto Slider
 let slideInterval;
 const startSlider = () => {
     slideInterval = setInterval(() => {
@@ -252,6 +871,7 @@ watch([minPrice, maxPrice], () => {
     debounceTimer = setTimeout(fetchData, 800);
 });
 
+// Lifecycle
 onMounted(() => {
     fetchData();
     const savedWishlist = localStorage.getItem('wishlist');
@@ -260,11 +880,22 @@ onMounted(() => {
     }
     window.addEventListener('scroll', handleScroll);
     startSlider();
+
+    // Track PageView for pixels
+    setTimeout(() => {
+        if (window.fbq) {
+            fbq('track', 'PageView');
+        }
+        if (window.ttq) {
+            ttq.track('Pageview');
+        }
+    }, 500);
 });
 
 onUnmounted(() => {
     window.removeEventListener('scroll', handleScroll);
     clearInterval(slideInterval);
+    document.body.style.overflow = 'auto';
 });
 
 watch(wishlist, (newVal) => {
@@ -272,614 +903,15 @@ watch(wishlist, (newVal) => {
 }, { deep: true });
 </script>
 
-<template>
-    <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 font-sans antialiased">
-
-        <div v-if="initialLoading" class="fixed inset-0 bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-950 z-[100] flex items-center justify-center">
-            <div class="text-center">
-                <div class="relative mb-8">
-                    <div class="w-32 h-32 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-4xl animate-bounce">🛍️</span>
-                    </div>
-                </div>
-                <h2 class="text-3xl font-black text-white mb-3">E-Shop</h2>
-                <p class="text-indigo-300/80">Loading amazing products for you...</p>
-            </div>
-        </div>
-
-        <header class="bg-white/80 backdrop-blur-xl border-b border-indigo-100/50 sticky top-0 z-50 transition-all duration-300">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-
-                <router-link to="/" class="flex items-center gap-3 group">
-                    <img v-if="getSetting('general', 'site_logo')" :src="getSetting('general', 'site_logo')" class="h-10 w-auto object-contain transition-transform group-hover:scale-105" alt="Logo">
-                    <div v-else class="relative">
-                        <span class="text-4xl group-hover:scale-110 group-hover:rotate-12 transition-all duration-300 inline-block">🛍️</span>
-                        <div class="absolute -inset-2 bg-indigo-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    </div>
-
-                    <span v-if="!getSetting('general', 'site_logo')" class="font-black text-3xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent tracking-tight">
-                        {{ getSetting('general', 'site_name', 'E-Shop') }}
-                    </span>
-                </router-link>
-
-                <div class="hidden md:flex flex-1 max-w-xl mx-10">
-                    <div class="relative w-full">
-                        <input
-                            v-model="searchQuery"
-                            type="text"
-                            placeholder="Search products..."
-                            class="w-full bg-white border-2 border-indigo-100 rounded-full py-4 pl-14 pr-14 text-sm focus:outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
-                        />
-                        <span class="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-400 text-xl">🔍</span>
-                        <button
-                            v-if="searchQuery"
-                            @click="searchQuery = ''"
-                            class="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-600 transition-colors"
-                        >
-                            ✕
-                        </button>
-                    </div>
-                </div>
-
-                <div class="flex items-center gap-4">
-                    <button class="md:hidden p-3 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
-                        <span class="text-xl">🔍</span>
-                    </button>
-
-                    <template v-if="authStore.isAuthenticated">
-                        <router-link
-                            to="/admin/dashboard"
-                            class="flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 font-semibold px-5 py-2.5 rounded-xl hover:from-indigo-100 hover:to-purple-100 transition-all border border-indigo-200/50 shadow-sm"
-                        >
-                            <span class="text-lg">👤</span>
-                            <span class="hidden sm:inline">Dashboard</span>
-                        </router-link>
-                    </template>
-                    <template v-else>
-                        <router-link to="/login">
-                            <button class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-indigo-500/30 hover:shadow-xl transition-all">
-                                Sign In
-                            </button>
-                        </router-link>
-                    </template>
-
-                    <router-link to="/checkout" class="relative">
-                        <button class="p-3 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all relative">
-                            <span class="text-xl">🛒</span>
-                            <span v-if="cartStore.items.length" class="absolute -top-1 -right-1 bg-gradient-to-br from-red-500 to-rose-500 text-white text-xs font-bold rounded-full min-w-[22px] h-[22px] flex items-center justify-center border-2 border-white shadow-lg animate-pulse">
-                                {{ cartStore.items.length }}
-                            </span>
-                        </button>
-                    </router-link>
-                </div>
-            </div>
-        </header>
-
-        <section class="relative bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 text-white overflow-hidden min-h-[500px]">
-            <div class="absolute inset-0">
-                <div class="absolute inset-0 opacity-20"
-                     style="background-image: url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%239C92AC\' fill-opacity=\'0.05\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');">
-                </div>
-                <div class="absolute top-0 -left-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-                <div class="absolute top-0 -right-40 w-80 h-80 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-                <div class="absolute bottom-0 left-20 w-80 h-80 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
-            </div>
-
-            <div class="max-w-7xl mx-auto px-6 py-24 md:py-32 relative z-10">
-                <transition name="slide-fade" mode="out-in">
-
-                    <div v-if="heroBanners.length > 0" :key="currentSlide" class="grid lg:grid-cols-2 gap-16 items-center">
-                        <div class="text-center lg:text-left">
-                            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-indigo-300 text-sm font-medium mb-8 animate-fade-in-up">
-                                <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                                {{ heroBanners[currentSlide].category_name || 'New Collection' }}
-                            </div>
-
-                            <h1 class="text-5xl md:text-7xl font-black leading-tight mb-6 animate-fade-in-up animation-delay-200 drop-shadow-lg">
-                                {{ heroBanners[currentSlide].title || 'Discover Tomorrow\'s Style Today' }}
-                            </h1>
-
-                            <p class="text-xl md:text-2xl text-indigo-200/90 max-w-2xl mx-auto lg:mx-0 mb-10 animate-fade-in-up animation-delay-400">
-                                {{ heroBanners[currentSlide].description || 'Premium curated products. Exceptional quality. Prices you\'ll love.' }}
-                            </p>
-
-                            <div class="flex flex-wrap gap-4 justify-center lg:justify-start animate-fade-in-up animation-delay-600">
-                                <a
-                                    :href="heroBanners[currentSlide].link || '/shop'"
-                                    class="bg-white text-indigo-950 hover:bg-gray-100 shadow-2xl shadow-indigo-500/30 rounded-full px-10 py-5 text-lg font-bold transition-all hover:scale-105 active:scale-95 group"
-                                >
-                                    Shop Now
-                                    <span class="ml-2 group-hover:translate-x-1 transition-transform inline-block">→</span>
-                                </a>
-
-                                <button
-                                    class="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-10 py-5 rounded-full text-lg font-semibold hover:bg-white/20 transition-all hover:scale-105 active:scale-95"
-                                    @click="document.getElementById('categories-section').scrollIntoView({ behavior: 'smooth' })"
-                                >
-                                    Explore Categories
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="relative hidden lg:block animate-fade-in">
-                            <div class="absolute inset-0 bg-gradient-to-t from-indigo-900/50 via-transparent to-transparent rounded-3xl"></div>
-                            <img
-                                :src="heroBanners[currentSlide].image_url"
-                                class="rounded-3xl shadow-2xl object-cover w-full h-[450px] transform hover:scale-105 transition-transform duration-1000"
-                                alt="Hero Product"
-                            />
-                        </div>
-                    </div>
-
-                    <div v-else class="grid lg:grid-cols-2 gap-16 items-center">
-                        <div class="text-center lg:text-left">
-                            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-indigo-300 text-sm font-medium mb-8 animate-fade-in-up">
-                                <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                                New Collection 2026
-                            </div>
-
-                            <h1 class="text-5xl md:text-7xl font-black leading-tight mb-6 animate-fade-in-up animation-delay-200">
-                                Discover
-                                <span class="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Tomorrow's</span>
-                                <br>Style Today
-                            </h1>
-
-                            <p class="text-xl md:text-2xl text-indigo-200/90 max-w-2xl mx-auto lg:mx-0 mb-10 animate-fade-in-up animation-delay-400">
-                                Premium curated products. Exceptional quality.
-                                <span class="font-semibold text-white">Prices you'll love.</span>
-                            </p>
-
-                            <div class="flex flex-wrap gap-4 justify-center lg:justify-start animate-fade-in-up animation-delay-600">
-                                <button
-                                    class="bg-white text-indigo-950 hover:bg-gray-100 shadow-2xl shadow-indigo-500/30 rounded-full px-10 py-5 text-lg font-bold transition-all hover:scale-105 active:scale-95 group"
-                                    @click="$router.push('/shop')"
-                                >
-                                    Shop Now
-                                    <span class="ml-2 group-hover:translate-x-1 transition-transform inline-block">→</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="relative hidden lg:block animate-fade-in">
-                            <div class="absolute inset-0 bg-gradient-to-t from-indigo-900/50 via-transparent to-transparent rounded-3xl"></div>
-                            <img
-                                src="https://images.unsplash.com/photo-1523275335684-04c0c856c0e0?q=80&w=1200&auto=format&fit=crop"
-                                class="rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-1000"
-                                alt="Hero Product"
-                            />
-                        </div>
-                    </div>
-                </transition>
-            </div>
-
-            <div v-if="heroBanners.length > 1" class="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 z-20">
-                <button
-                    v-for="(_, index) in heroBanners"
-                    :key="index"
-                    @click="currentSlide = index"
-                    :class="currentSlide === index ? 'w-10 bg-indigo-500' : 'w-3 bg-white/50 hover:bg-white/80'"
-                    class="h-3 rounded-full transition-all duration-500 shadow-md"
-                ></button>
-            </div>
-        </section>
-
-        <div class="bg-white border-b border-indigo-100 py-6">
-            <div class="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-2xl">
-                        📦
-                    </div>
-                    <div>
-                        <div class="font-bold text-gray-900">Free Shipping</div>
-                        <div class="text-sm text-gray-600">On orders $50+</div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-2xl">
-                        🚚
-                    </div>
-                    <div>
-                        <div class="font-bold text-gray-900">Fast Delivery</div>
-                        <div class="text-sm text-gray-600">2-3 business days</div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-2xl">
-                        🔒
-                    </div>
-                    <div>
-                        <div class="font-bold text-gray-900">Secure Payment</div>
-                        <div class="text-sm text-gray-600">100% protected</div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-2xl">
-                        💬
-                    </div>
-                    <div>
-                        <div class="font-bold text-gray-900">24/7 Support</div>
-                        <div class="text-sm text-gray-600">Live chat</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <section v-if="featuredProducts.length" class="max-w-7xl mx-auto px-6 py-20">
-            <div class="text-center mb-12">
-                <h2 class="text-4xl md:text-5xl font-black text-slate-900 mb-4">
-                    Featured
-                    <span class="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Products</span>
-                </h2>
-                <p class="text-xl text-gray-600 max-w-2xl mx-auto">
-                    Hand-picked items just for you
-                </p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div
-                    v-for="(product, index) in featuredProducts.slice(0, 3)"
-                    :key="product.id"
-                    class="group relative bg-white rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 cursor-pointer"
-                    :style="{ animationDelay: `${index * 200}ms` }"
-                    @click="navigateToProduct(product.id)"
-                >
-                    <div class="relative h-72 bg-gradient-to-br from-indigo-50 to-purple-50 p-8">
-                        <img
-                            :src="getImageUrl(product.thumbnail)"
-                            class="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700"
-                            alt=""
-                        />
-                        <div class="absolute top-4 left-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
-                            Featured
-                        </div>
-                    </div>
-
-                    <div class="p-6">
-                        <h3 class="font-bold text-xl text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors line-clamp-2">
-                            {{ product.name }}
-                        </h3>
-                        <p class="text-gray-600 text-sm mb-4 line-clamp-2">{{ product.description || 'Premium quality product with exceptional features.' }}</p>
-
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <span class="text-2xl font-black text-slate-900">৳{{ product.sale_price || product.base_price }}</span>
-                                <span v-if="product.discount_price" class="ml-2 text-sm text-gray-500 line-through">৳{{ product.base_price }}</span>
-                            </div>
-                            <button
-                                @click.stop="handleAddToCart(product)"
-                                class="bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl transition-all hover:scale-110 active:scale-95 shadow-lg shadow-indigo-500/30"
-                            >
-                                <span class="text-xl">🛒</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section v-if="categories.length" id="categories-section" class="max-w-7xl mx-auto px-6 py-20">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
-                <div>
-                    <h2 class="text-4xl md:text-5xl font-black text-slate-900 mb-4">
-                        Shop by
-                        <span class="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Category</span>
-                    </h2>
-                    <p class="text-xl text-gray-600">
-                        Explore our curated collections
-                    </p>
-                </div>
-                <router-link
-                    to="/categories"
-                    class="flex items-center gap-2 text-indigo-600 font-semibold hover:gap-3 transition-all group"
-                >
-                    View All Categories
-                    <span class="group-hover:translate-x-1 transition-transform">→</span>
-                </router-link>
-            </div>
-
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
-                <div
-                    v-for="(cat, index) in categories"
-                    :key="cat.id"
-                    @click="filterByCategory(cat.slug)"
-                    class="group relative overflow-hidden rounded-3xl bg-white border-2 border-indigo-100/50 hover:border-indigo-300 shadow-sm hover:shadow-xl transition-all duration-500 cursor-pointer animate-fade-in-up"
-                    :style="{ animationDelay: `${index * 100}ms` }"
-                >
-                    <div class="aspect-square overflow-hidden">
-                        <img
-                            v-if="cat.image"
-                            :src="getImageUrl(cat.image)"
-                            class="w-full h-full object-cover group-hover:scale-125 transition-transform duration-700"
-                            alt=""
-                        />
-                        <div v-else class="w-full h-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-5xl">
-                            📦
-                        </div>
-                    </div>
-
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-
-                    <div class="absolute bottom-0 left-0 right-0 p-4 text-white transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                        <p class="font-bold text-lg drop-shadow-md">{{ cat.name }}</p>
-                        <p class="text-sm text-white/80 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Shop now →</p>
-                    </div>
-
-                    <div v-if="selectedCategory === cat.slug" class="absolute top-3 right-3 w-3 h-3 bg-indigo-500 rounded-full animate-pulse"></div>
-                </div>
-            </div>
-        </section>
-
-        <section id="products-section" class="max-w-7xl mx-auto px-6 pb-24">
-            <div class="bg-white/70 backdrop-blur-xl rounded-3xl border-2 border-indigo-100/50 shadow-lg p-6 mb-12 sticky top-24 z-40">
-                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center text-white shadow-lg text-2xl">
-                            ⚙️
-                        </div>
-                        <div>
-                            <h3 class="text-2xl font-bold text-slate-900">
-                                {{ selectedCategory ? 'Curated Selection' : 'All Products' }}
-                            </h3>
-                            <p class="text-gray-600 text-sm">
-                                Showing
-                                <span class="font-semibold text-indigo-600">{{ products.length }}</span>
-                                premium items
-                                <span v-if="activeFilterCount" class="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full text-xs">
-                                    {{ activeFilterCount }} filters active
-                                </span>
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="flex flex-wrap gap-3">
-                        <select
-                            v-model="sortOption"
-                            @change="fetchData"
-                            class="bg-white border-2 border-indigo-100 hover:border-indigo-300 rounded-xl px-4 py-2.5 text-gray-700 focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all cursor-pointer"
-                        >
-                            <option value="">Sort: Featured</option>
-                            <option value="price_low">Price: Low to High</option>
-                            <option value="price_high">Price: High to Low</option>
-                            <option value="newest">Newest First</option>
-                        </select>
-
-                        <button
-                            v-if="activeFilterCount"
-                            @click="resetFilters"
-                            class="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-5 py-2.5 rounded-xl font-medium transition-all border-2 border-red-100 hover:border-red-300"
-                        >
-                            <span>✕</span>
-                            Clear ({{ activeFilterCount }})
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div v-if="loading" class="flex flex-col items-center justify-center py-40">
-                <div class="relative mb-8">
-                    <div class="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-                </div>
-                <p class="text-gray-600 font-medium">Loading exclusive collection...</p>
-            </div>
-
-            <div v-else-if="products.length" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-                <div
-                    v-for="(product, index) in products"
-                    :key="product.id"
-                    class="group bg-white rounded-3xl overflow-hidden hover:shadow-2xl hover:shadow-indigo-500/20 transition-all duration-500 hover:-translate-y-2 animate-fade-in-up cursor-pointer"
-                    :style="{ animationDelay: `${index * 100}ms` }"
-                    @click="navigateToProduct(product.id)"
-                >
-                    <div class="relative h-64 bg-gradient-to-br from-indigo-50 to-purple-50 p-6 overflow-hidden">
-                        <div v-if="product.discount_price" class="absolute top-4 left-4 z-10 bg-gradient-to-r from-red-500 to-rose-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
-                            -{{ Math.round((product.base_price - product.sale_price) / product.base_price * 100) }}%
-                        </div>
-
-                        <button
-                            @click.stop="toggleWishlist(product.id)"
-                            class="absolute top-4 right-4 z-10 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center hover:bg-red-50 transition-all"
-                        >
-                            <span :class="isInWishlist(product.id) ? 'text-red-500' : 'text-gray-400'" class="text-xl">
-                                {{ isInWishlist(product.id) ? '❤️' : '🤍' }}
-                            </span>
-                        </button>
-
-                        <img
-                            :src="getImageUrl(product.thumbnail)"
-                            class="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700"
-                            alt=""
-                        />
-
-                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <button
-                                @click.stop="navigateToProduct(product.id)"
-                                class="bg-white text-indigo-600 px-6 py-3 rounded-full font-semibold transform translate-y-4 group-hover:translate-y-0 transition-transform shadow-xl"
-                            >
-                                Quick View
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="p-6">
-                        <p class="text-xs text-indigo-600 font-semibold uppercase tracking-wide mb-2">
-                            {{ product.category?.name || 'Collection' }}
-                        </p>
-
-                        <h3 class="font-bold text-lg text-slate-900 mb-2 line-clamp-2 group-hover:text-indigo-600 transition-colors">
-                            {{ product.name }}
-                        </h3>
-
-                        <div class="flex items-end justify-between mt-4 pt-4 border-t border-indigo-100">
-                            <div>
-                                <span class="text-2xl font-black text-slate-900">৳{{ product.sale_price || product.base_price }}</span>
-                                <span v-if="product.discount_price" class="block text-sm text-gray-500 line-through">৳{{ product.base_price }}</span>
-                            </div>
-
-                            <button
-                                @click.stop="handleAddToCart(product)"
-                                class="bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl transition-all hover:scale-110 active:scale-95 shadow-lg shadow-indigo-500/30"
-                            >
-                                <span class="text-xl">🛒</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div v-else class="text-center py-40 bg-white/70 backdrop-blur-xl rounded-3xl border-2 border-indigo-100/50 shadow-lg">
-                <div class="w-32 h-32 mx-auto mb-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center text-6xl">
-                    🔍
-                </div>
-                <h3 class="text-3xl font-black text-slate-800 mb-4">No Products Found</h3>
-                <p class="text-gray-600 text-lg max-w-md mx-auto mb-8">
-                    We couldn't find any products matching your criteria.
-                    <br>Try adjusting your filters.
-                </p>
-                <button
-                    @click="resetFilters"
-                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-2xl font-bold text-lg shadow-xl shadow-indigo-500/30"
-                >
-                    Clear All Filters
-                </button>
-            </div>
-        </section>
-
-        <section class="bg-gradient-to-r from-indigo-600 to-purple-600 py-20">
-            <div class="max-w-7xl mx-auto px-6 text-center">
-                <h2 class="text-4xl md:text-5xl font-black text-white mb-4">Stay in the Loop</h2>
-                <p class="text-xl text-indigo-100 mb-10 max-w-2xl mx-auto">
-                    Subscribe to get exclusive offers, early access to sales, and new arrivals.
-                </p>
-
-                <form @submit.prevent class="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
-                    <input
-                        type="email"
-                        placeholder="Enter your email"
-                        class="flex-1 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl px-6 py-4 text-white placeholder-indigo-200 focus:outline-none focus:border-white/50 transition-all"
-                        required
-                    />
-                    <button class="bg-white text-indigo-600 hover:bg-indigo-50 px-8 py-4 rounded-xl font-bold text-lg shadow-xl transition-all hover:scale-105 active:scale-95">
-                        Subscribe
-                    </button>
-                </form>
-
-                <p class="text-indigo-200 text-sm mt-4">
-                    No spam. Unsubscribe anytime.
-                </p>
-            </div>
-        </section>
-
-        <footer class="bg-gradient-to-b from-slate-950 to-black text-gray-300 pt-20 pb-12">
-            <div class="max-w-7xl mx-auto px-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-16">
-                    <div class="lg:col-span-2">
-                        <div class="flex items-center gap-3 mb-6">
-                            <img v-if="getSetting('general', 'site_logo')" :src="getSetting('general', 'site_logo')" class="h-10 w-auto filter brightness-0 invert" alt="Logo">
-                            <span v-else class="font-black text-3xl text-white tracking-tight">{{ getSetting('general', 'site_name', 'E-Shop') }}</span>
-                        </div>
-                        <p class="text-gray-400 text-sm leading-relaxed mb-6 max-w-md">
-                            {{ getSetting('general', 'site_description', 'Premium shopping experience — curated, secure, delivered fast. We bring you the best products from around the world at prices you\'ll love.') }}
-                        </p>
-
-                        <div class="flex gap-4">
-                            <a v-if="getSetting('social', 'facebook')" :href="getSetting('social', 'facebook')" target="_blank" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-blue-600 transition-colors text-xl">
-                                📘
-                            </a>
-                            <a v-if="getSetting('social', 'instagram')" :href="getSetting('social', 'instagram')" target="_blank" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-pink-600 transition-colors text-xl">
-                                📷
-                            </a>
-                            <a v-if="getSetting('social', 'youtube')" :href="getSetting('social', 'youtube')" target="_blank" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-red-600 transition-colors text-xl">
-                                ▶️
-                            </a>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h3 class="text-white font-bold text-lg mb-6">Contact Info</h3>
-                        <ul class="space-y-3 text-sm">
-                            <li class="flex gap-2"><span>📞</span> {{ getSetting('general', 'phone', '+880123456789') }}</li>
-                            <li class="flex gap-2"><span>✉️</span> {{ getSetting('general', 'email', 'support@eshop.com') }}</li>
-                            <li class="flex gap-2"><span>📍</span> {{ getSetting('general', 'address', 'Dhaka, Bangladesh') }}</li>
-                        </ul>
-                    </div>
-
-                    <div>
-                        <h3 class="text-white font-bold text-lg mb-6">Quick Links</h3>
-                        <ul class="space-y-3 text-sm">
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Home</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Shop</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">About Us</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Contact</a></li>
-                        </ul>
-                    </div>
-
-                    <div>
-                        <h3 class="text-white font-bold text-lg mb-6">Legal</h3>
-                        <ul class="space-y-3 text-sm">
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Privacy Policy</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Terms & Conditions</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Refund Policy</a></li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="pt-10 border-t border-slate-800 text-center text-sm text-gray-500">
-                    {{ getSetting('general', 'copyright', '© 2026 E-Shop. Built with ❤️ in Bangladesh') }}
-                </div>
-            </div>
-        </footer>
-
-        <button
-            v-if="showBackToTop"
-            @click="scrollToTop"
-            class="fixed bottom-8 right-8 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-2xl shadow-indigo-500/50 flex items-center justify-center transition-all hover:scale-110 active:scale-95 z-50 animate-bounce text-2xl"
-        >
-            ↑
-        </button>
-    </div>
-</template>
-
 <style scoped>
-/* Slider Fade Animation */
-.slide-fade-enter-active {
-    transition: all 0.6s ease-out;
-}
-.slide-fade-leave-active {
-    transition: all 0.4s cubic-bezier(1, 0.5, 0.8, 1);
-}
-.slide-fade-enter-from {
-    transform: translateX(30px);
-    opacity: 0;
-}
-.slide-fade-leave-to {
-    transform: translateX(-30px);
-    opacity: 0;
-}
+.slide-fade-enter-active { transition: all 0.6s ease-out; }
+.slide-fade-leave-active { transition: all 0.4s cubic-bezier(1, 0.5, 0.8, 1); }
+.slide-fade-enter-from { transform: translateX(30px); opacity: 0; }
+.slide-fade-leave-to { transform: translateX(-30px); opacity: 0; }
 
 @keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes blob {
-    0% { transform: translate(0px, 0px) scale(1); }
-    33% { transform: translate(30px, -50px) scale(1.1); }
-    66% { transform: translate(-20px, 20px) scale(0.9); }
-    100% { transform: translate(0px, 0px) scale(1); }
-}
-
-@keyframes float {
-    0% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
-    100% { transform: translateY(0px); }
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in-up {
@@ -887,60 +919,30 @@ watch(wishlist, (newVal) => {
     opacity: 0;
 }
 
-.animate-blob {
-    animation: blob 7s infinite;
-}
-
-.animate-float {
-    animation: float 3s ease-in-out infinite;
-}
-
-.animation-delay-200 {
-    animation-delay: 200ms;
-}
-
-.animation-delay-400 {
-    animation-delay: 400ms;
-}
-
-.animation-delay-600 {
-    animation-delay: 600ms;
-}
-
-.animation-delay-800 {
-    animation-delay: 800ms;
-}
-
-.animation-delay-1000 {
-    animation-delay: 1000ms;
-}
-
-.animation-delay-2000 {
-    animation-delay: 2s;
-}
-
-.animation-delay-4000 {
-    animation-delay: 4s;
+.line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 html {
     scroll-behavior: smooth;
+    overflow-x: hidden;
+}
+body {
+    overflow-x: hidden;
+    width: 100%;
 }
 
-::-webkit-scrollbar {
-    width: 10px;
-}
+/* Scrollbar Styling */
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: linear-gradient(to bottom, #6366f1, #a855f7); border-radius: 5px; }
+::-webkit-scrollbar-thumb:hover { background: linear-gradient(to bottom, #4f46e5, #9333ea); }
 
-::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-
-::-webkit-scrollbar-thumb {
-    background: linear-gradient(to bottom, #6366f1, #a855f7);
-    border-radius: 5px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(to bottom, #4f46e5, #9333ea);
+/* Mobile Menu Styles */
+.mobile-menu {
+    transition: transform 0.3s ease-in-out;
 }
 </style>

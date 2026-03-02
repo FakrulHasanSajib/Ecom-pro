@@ -222,6 +222,11 @@ const logout = async () => {
                     <span v-if="isSidebarOpen" class="ml-3 font-medium">Photo Gallery</span>
                 </router-link>
 
+                <router-link to="/admin/blocked-ips" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="route.path.startsWith('/admin/blocked-ips') ? 'bg-indigo-600 shadow-md' : ''">
+    <span class="text-xl w-6 text-center">🚫</span>
+    <span v-if="isSidebarOpen" class="ml-3 font-medium">Blocked IPs</span>
+</router-link>
+
                 <router-link to="/admin/api-integration" class="flex items-center p-3 hover:bg-indigo-600 rounded-lg transition" :class="route.path.startsWith('/admin/api-integration') ? 'bg-indigo-600 shadow-md' : ''">
                     <span class="text-xl w-6 text-center">🔌</span>
                     <span v-if="isSidebarOpen" class="ml-3 font-medium">API Integration</span>

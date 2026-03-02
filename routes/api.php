@@ -46,19 +46,19 @@ Route::post('/register', [AuthController::class, 'register']);
 
 Route::prefix('public')->group(function () {
     Route::get('/products', [PublicProductController::class, 'index']);
-    
+
     // 🔥 featured রাউটটি {slug} এর উপরে রাখতে হবে, তা না হলে 404 আসবে!
-    Route::get('/products/featured', [PublicProductController::class, 'getFeatured']); 
+    Route::get('/products/featured', [PublicProductController::class, 'getFeatured']);
     Route::get('/products/{slug}', [PublicProductController::class, 'show']);
 
     // হোমপেজে ক্যাটাগরি, স্লাইডার এবং সেটিংস দেখানোর রুট
     Route::get('/categories', [CategoryController::class, 'index']);
-    Route::get('/sliders', [SliderController::class, 'getActiveSliders']); 
+    Route::get('/sliders', [SliderController::class, 'getActiveSliders']);
     Route::get('/settings', [SettingController::class, 'index']); // 👈 এটি আমাদের পাবলিক সেটিংস
 
     Route::post('/checkout', [OrderController::class, 'store']);
     Route::get('/invoice/{order_number}', [InvoiceController::class, 'show']);
-});s
+});
 
 // ২. পেমেন্ট গেটওয়ে কলব্যাক
 Route::post('/payment/success', [PaymentController::class, 'success']);
@@ -173,4 +173,8 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->group(functi
     Route::get('/order-statuses', [OrderStatusController::class, 'index']);
     Route::post('/order-statuses', [OrderStatusController::class, 'store']);
     Route::delete('/order-statuses/{id}', [OrderStatusController::class, 'destroy']);
+    // --- IP Blocking Management ---
+    Route::get('/blocked-ips', [\App\Http\Controllers\Admin\BlockedIpController::class, 'index']);
+    Route::post('/blocked-ips', [\App\Http\Controllers\Admin\BlockedIpController::class, 'store']);
+    Route::delete('/blocked-ips/{id}', [\App\Http\Controllers\Admin\BlockedIpController::class, 'destroy']);
 });
