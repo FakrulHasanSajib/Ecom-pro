@@ -3,6 +3,7 @@ import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import Swal from 'sweetalert2';
+import AdminLayout from '@/Layouts/AdminLayout.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -29,6 +30,7 @@ const assignFilter = ref(route.query.assign || '');
 
 // API বেস URL
 const API_URL = 'http://127.0.0.1:73/api/admin';
+const ASSET_URL = 'http://127.0.0.1:73/storage'; // ইমেজের জন্য স্টোরেজ লিংক
 
 // ফিল্টার করা অর্ডার
 const filteredOrders = computed(() => {
@@ -182,7 +184,7 @@ const bulkAssignUpdate = async () => {
   }
 };
 
-// 🔥 ৩. প্রিন্ট অর্ডার (একাধিক ইনভয়েস একসাথে)
+// 🔥 ৩. প্রিন্ট অর্ডার
 const printOrders = async () => {
   if (selectedOrders.value.length === 0) return Swal.fire('Warning', 'Please select at least one order', 'warning');
 
@@ -249,6 +251,13 @@ const resetFilters = () => {
   searchQuery.value = ''; dateFilter.value = ''; orderSource.value = ''; assignFilter.value = '';
   router.push({ query: {} });
   fetchOrders();
+};
+
+// Image Helper Function
+const getProductImage = (imagePath) => {
+    if (!imagePath) return 'https://placehold.co/100x100?text=No+Image';
+    if (imagePath.startsWith('http')) return imagePath;
+    return `${ASSET_URL}/${imagePath}`;
 };
 
 // স্ট্যাটাস ব্যাজের জন্য ক্লাস
@@ -375,8 +384,7 @@ onMounted(() => {
               </th>
               <th class="p-4">Order Details</th>
               <th class="p-4">Customer Info</th>
-              <th class="p-4">Shipping Address</th>
-              <th class="p-4">Products</th>
+              <th class="p-4 w-1/4">Products</th>
               <th class="p-4">Payment</th>
               <th class="p-4 text-center">Status</th>
               <th class="p-4 text-center">Actions</th>
@@ -384,7 +392,7 @@ onMounted(() => {
           </thead>
           <tbody class="divide-y divide-slate-100">
             <tr v-if="loading">
-              <td colspan="8" class="p-12 text-center">
+              <td colspan="7" class="p-12 text-center">
                 <div class="flex flex-col items-center gap-3">
                   <div class="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
                   <span class="text-slate-500 font-medium">Loading orders...</span>
@@ -393,7 +401,7 @@ onMounted(() => {
             </tr>
 
             <tr v-else-if="filteredOrders.length === 0">
-              <td colspan="8" class="p-12 text-center">
+              <td colspan="7" class="p-12 text-center">
                 <div class="text-6xl mb-4">📭</div>
                 <h3 class="text-xl font-bold text-slate-800 mb-2">No Orders Found</h3>
                 <p class="text-slate-500">Try adjusting your filters or create a new order</p>
@@ -409,45 +417,50 @@ onMounted(() => {
                 <div class="font-black text-indigo-600 text-sm">#{{ order.order_number || order.id }}</div>
                 <div class="text-xs text-slate-400 font-medium mt-1">{{ formatDate(order.created_at) }}</div>
                 <div class="mt-2 flex flex-wrap gap-1">
-                  <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold">WEB</span>
+                  <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold uppercase">{{ order.order_source || 'WEB' }}</span>
                 </div>
               </td>
 
               <td class="p-4">
                 <div class="font-bold text-slate-800">{{ order.name || 'N/A' }}</div>
-                <div class="flex items-center gap-1 mt-1">
-                  <a :href="'tel:' + order.phone" class="text-xs font-medium text-indigo-600 hover:text-indigo-800">
-                    {{ order.phone || 'No Phone' }}
-                  </a>
+                <a :href="'tel:' + order.phone" class="text-xs font-medium text-indigo-600 hover:text-indigo-800 mt-1 inline-block">
+                  <i class="bi bi-telephone"></i> {{ order.phone || 'No Phone' }}
+                </a>
+                <div class="text-xs text-slate-500 mt-2 truncate max-w-[200px] hover:whitespace-normal hover:bg-white hover:shadow-lg hover:absolute hover:z-10 hover:p-2 hover:rounded border hover:border-gray-200" title="Full Address">
+                    <i class="bi bi-geo-alt"></i> {{ order.address || 'N/A' }}, {{ order.area || '' }}
                 </div>
               </td>
 
               <td class="p-4">
-                <div class="text-sm font-medium text-slate-700">{{ order.address || 'N/A' }}</div>
-                <div class="text-xs text-slate-500 mt-1">
-                  {{ order.area || '' }}
-                </div>
-              </td>
-
-              <td class="p-4">
-                <div class="text-xs text-slate-600 space-y-1">
-                  <span v-for="(item, idx) in (order.items || order.order_items || []).slice(0, 3)" :key="idx" class="block bg-slate-100 p-1.5 rounded-md border border-slate-200">
-                    <span class="font-bold text-slate-800">{{ item.product_name || item.product?.name || 'Unknown Product' }}</span>
-                    <span class="text-indigo-600 font-bold ml-1">x{{ item.quantity || 1 }}</span>
-                  </span>
-                  <span v-if="(order.items || order.order_items || []).length > 3" class="text-slate-400 font-bold text-[10px] uppercase">
-                    + {{ (order.items || order.order_items).length - 3 }} more items
-                  </span>
-                  <span v-if="!(order.items || order.order_items) || (order.items || order.order_items).length === 0" class="text-red-400 font-bold bg-red-50 px-2 py-1 rounded">
+                <div class="space-y-2">
+                  <div v-for="(item, idx) in (order.items || order.order_items || []).slice(0, 2)" :key="idx"
+                       class="flex items-center gap-3 bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
+                    <img :src="getProductImage(item.product?.thumbnail || item.product_image)"
+                         class="w-10 h-10 object-cover rounded bg-slate-50"
+                         alt="Product">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-bold text-slate-800 truncate" :title="item.product_name || item.product?.name">
+                            {{ item.product_name || item.product?.name || 'Unknown Product' }}
+                        </p>
+                        <p class="text-[10px] text-slate-500 mt-0.5">
+                            Qty: <span class="font-bold text-indigo-600">{{ item.quantity || 1 }}</span>
+                            <span v-if="item.price"> × ৳{{ item.price }}</span>
+                        </p>
+                    </div>
+                  </div>
+                  <div v-if="(order.items || order.order_items || []).length > 2" class="text-xs text-center text-indigo-600 font-bold bg-indigo-50 py-1 rounded-md cursor-pointer hover:bg-indigo-100">
+                    + {{ (order.items || order.order_items).length - 2 }} more items
+                  </div>
+                  <div v-if="!(order.items || order.order_items) || (order.items || order.order_items).length === 0" class="text-xs text-rose-500 font-medium italic">
                     No items found
-                  </span>
+                  </div>
                 </div>
               </td>
 
               <td class="p-4">
-                <div class="font-black text-emerald-600 text-lg">{{ formatCurrency(order.grand_total || order.total_amount) }}</div>
-                <div class="flex items-center gap-1 mt-1">
-                  <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-[10px] font-bold">
+                <div class="font-black text-emerald-600 text-base">{{ formatCurrency(order.grand_total || order.total_amount) }}</div>
+                <div class="mt-1">
+                  <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-[10px] font-bold uppercase tracking-wider">
                     {{ order.payment_method || 'COD' }}
                   </span>
                 </div>
@@ -468,11 +481,26 @@ onMounted(() => {
                 </div>
               </td>
 
-              <td class="p-4">
+            <td class="p-4">
                 <div class="flex items-center justify-center gap-2">
-                  <router-link :to="`/admin/orders/${order.id}`" class="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center hover:bg-indigo-200 transition-colors" title="View">👁️</router-link>
-                  <router-link :to="`/admin/orders/${order.id}/edit`" class="w-8 h-8 bg-amber-100 text-amber-600 rounded-lg flex items-center justify-center hover:bg-amber-200 transition-colors" title="Edit">✏️</router-link>
-                  <button @click="deleteOrder(order.id)" class="w-8 h-8 bg-red-100 text-red-600 rounded-lg flex items-center justify-center hover:bg-red-200 transition-colors" title="Delete">🗑️</button>
+                  <router-link :to="`/admin/orders/${order.id}`" class="w-8 h-8 bg-indigo-50 text-indigo-600 rounded flex items-center justify-center hover:bg-indigo-600 hover:text-white transition-colors" title="View Details">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                  </router-link>
+
+                  <router-link :to="`/admin/orders/${order.id}/edit`" class="w-8 h-8 bg-amber-50 text-amber-600 rounded flex items-center justify-center hover:bg-amber-500 hover:text-white transition-colors" title="Edit Order">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                  </router-link>
+
+                  <button @click="deleteOrder(order.id)" class="w-8 h-8 bg-rose-50 text-rose-600 rounded flex items-center justify-center hover:bg-rose-500 hover:text-white transition-colors" title="Delete Order">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                  </button>
                 </div>
               </td>
             </tr>
@@ -493,7 +521,7 @@ onMounted(() => {
 
 <style scoped>
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-track { background: #f8fafc; }
 ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 table { border-collapse: separate; border-spacing: 0; }
