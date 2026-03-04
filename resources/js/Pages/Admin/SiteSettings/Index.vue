@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import axios from 'axios';
 import Swal from 'sweetalert2';
+import AdminLayout from '@/Layouts/AdminLayout.vue';
 
 const API_URL = 'http://127.0.0.1:73/api/admin/settings';
 const loading = ref(true);
@@ -9,14 +10,10 @@ const saving = ref(false);
 const activeTab = ref('appearance');
 
 const form = ref({
-    // Appearance
     primary_color: '#4f46e5', secondary_color: '#f8fafc', header_bg: '#ffffff', button_radius: 'rounded-md',
-    // General
-    store_name: '', store_slogan: '',
-    // Contact
-    contact_phone: '', contact_email: '', store_address: '',
-    // Social
-    facebook_url: '', instagram_url: '', twitter_url: '', linkedin_url: '', youtube_url: '', whatsapp_number: ''
+    site_name: '', site_description: '',
+    phone: '', email: '', address: '',
+    facebook: '', instagram: '', twitter: '', linkedin: '', youtube: '', whatsapp: ''
 });
 
 const tabs = [
@@ -30,17 +27,72 @@ const fetchSettings = async () => {
     try {
         const token = localStorage.getItem('token');
         const res = await axios.get(API_URL, { headers: { Authorization: `Bearer ${token}` } });
-        if(res.data && res.data.data) { form.value = { ...form.value, ...res.data.data }; }
-    } catch (error) { console.error(error); } finally { loading.value = false; }
+
+        const settingsData = res.data?.data || {};
+
+        Object.keys(settingsData).forEach(group => {
+            const items = settingsData[group];
+            items.forEach(item => {
+                if (form.value[item.key] !== undefined) {
+                    form.value[item.key] = item.value;
+                }
+            });
+        });
+    } catch (error) {
+        console.error(error);
+    } finally {
+        loading.value = false;
+    }
 };
 
+// 🔥 Shudhu Active Tab er data save korar logic
 const saveSettings = async () => {
     saving.value = true;
+
+    // Kon tab e achen, tar upore base kore data pathano hobe
+    let dataToSend = {};
+
+    if (activeTab.value === 'appearance') {
+        dataToSend = {
+            primary_color: form.value.primary_color,
+            secondary_color: form.value.secondary_color,
+            header_bg: form.value.header_bg,
+            button_radius: form.value.button_radius
+        };
+    } else if (activeTab.value === 'general') {
+        dataToSend = {
+            site_name: form.value.site_name,
+            site_description: form.value.site_description
+        };
+    } else if (activeTab.value === 'contact') {
+        dataToSend = {
+            phone: form.value.phone,
+            email: form.value.email,
+            address: form.value.address
+        };
+    } else if (activeTab.value === 'social') {
+        dataToSend = {
+            facebook: form.value.facebook,
+            instagram: form.value.instagram,
+            twitter: form.value.twitter,
+            linkedin: form.value.linkedin,
+            youtube: form.value.youtube,
+            whatsapp: form.value.whatsapp
+        };
+    }
+
     try {
         const token = localStorage.getItem('token');
-        await axios.post(API_URL, form.value, { headers: { Authorization: `Bearer ${token}` } });
-        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Site Settings Saved!', showConfirmButton: false, timer: 1500 });
-    } catch (error) { Swal.fire('Error', 'Failed to save', 'error'); } finally { saving.value = false; }
+        await axios.post(API_URL, dataToSend, { headers: { Authorization: `Bearer ${token}` } });
+
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Saved Successfully!', showConfirmButton: false, timer: 1500 });
+
+        fetchSettings();
+    } catch (error) {
+        Swal.fire('Error', 'Failed to save', 'error');
+    } finally {
+        saving.value = false;
+    }
 };
 
 onMounted(() => fetchSettings());
@@ -48,7 +100,7 @@ onMounted(() => fetchSettings());
 
 <template>
     <AdminLayout>
-        <div class="max-w-6xl mx-auto pb-10">
+        <div class="max-w-6xl mx-auto pb-10 mt-6">
             <h2 class="text-2xl font-black text-slate-800 mb-6">⚙️ Site Settings</h2>
 
             <div v-if="loading" class="text-center py-20 text-slate-500 font-bold animate-pulse">Loading Settings...</div>
@@ -63,81 +115,50 @@ onMounted(() => fetchSettings());
                     </button>
                 </div>
 
-                <div class="flex-1 p-6 lg:p-10 bg-white">
+                <div class="flex-1 p-6 lg:p-10 bg-white flex flex-col">
 
-                    <div v-show="activeTab === 'appearance'" class="animate-fadeIn space-y-6">
+                    <div v-show="activeTab === 'appearance'" class="animate-fadeIn space-y-6 flex-1">
                         <h3 class="text-xl font-black text-slate-800 border-b pb-3 mb-6">🎨 UI & Color Scheme</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-2">Primary Color (Buttons, Links)</label>
-                                <div class="flex items-center gap-3">
-                                    <input v-model="form.primary_color" type="color" class="w-12 h-12 rounded cursor-pointer border-0 p-0">
-                                    <input v-model="form.primary_color" type="text" class="px-3 py-2 border border-slate-300 rounded-lg outline-none font-mono text-sm w-32 focus:border-indigo-500">
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-2">Header Background Color</label>
-                                <div class="flex items-center gap-3">
-                                    <input v-model="form.header_bg" type="color" class="w-12 h-12 rounded cursor-pointer border-0 p-0">
-                                    <input v-model="form.header_bg" type="text" class="px-3 py-2 border border-slate-300 rounded-lg outline-none font-mono text-sm w-32 focus:border-indigo-500">
-                                </div>
-                            </div>
+                            <div><label class="block text-xs font-bold text-slate-600 mb-2">Primary Color</label><input v-model="form.primary_color" type="color" class="w-12 h-12 border-0 p-0"><input v-model="form.primary_color" type="text" class="px-3 py-2 border ml-2 w-24 rounded"></div>
+                            <div><label class="block text-xs font-bold text-slate-600 mb-2">Header Background</label><input v-model="form.header_bg" type="color" class="w-12 h-12 border-0 p-0"><input v-model="form.header_bg" type="text" class="px-3 py-2 border ml-2 w-24 rounded"></div>
                         </div>
                     </div>
 
-                    <div v-show="activeTab === 'general'" class="animate-fadeIn space-y-6">
+                    <div v-show="activeTab === 'general'" class="animate-fadeIn space-y-6 flex-1">
                         <h3 class="text-xl font-black text-slate-800 border-b pb-3 mb-6">⚙️ General Information</h3>
-                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Store Name</label><input v-model="form.store_name" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500"></div>
-                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Store Slogan / Title</label><input v-model="form.store_slogan" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500"></div>
+                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Site Name</label><input v-model="form.site_name" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500"></div>
+                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Site Slogan / Description</label><input v-model="form.site_description" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500"></div>
                     </div>
 
-                    <div v-show="activeTab === 'contact'" class="animate-fadeIn space-y-6">
+                    <div v-show="activeTab === 'contact'" class="animate-fadeIn space-y-6 flex-1">
                         <h3 class="text-xl font-black text-slate-800 border-b pb-3 mb-6">📞 Contact Info</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div><label class="block text-xs font-bold text-slate-600 mb-1">Phone Number</label><input v-model="form.contact_phone" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500"></div>
-                            <div><label class="block text-xs font-bold text-slate-600 mb-1">Email Address</label><input v-model="form.contact_email" type="email" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500"></div>
+                            <div><label class="block text-xs font-bold text-slate-600 mb-1">Phone Number</label><input v-model="form.phone" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500"></div>
+                            <div><label class="block text-xs font-bold text-slate-600 mb-1">Email Address</label><input v-model="form.email" type="email" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500"></div>
                         </div>
-                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Office Address</label><textarea v-model="form.store_address" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500"></textarea></div>
+                        <div><label class="block text-xs font-bold text-slate-600 mb-1">Office Address</label><textarea v-model="form.address" rows="3" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-indigo-500"></textarea></div>
                     </div>
 
-                    <div v-show="activeTab === 'social'" class="animate-fadeIn space-y-6">
+                    <div v-show="activeTab === 'social'" class="animate-fadeIn space-y-6 flex-1">
                         <h3 class="text-xl font-black text-slate-800 border-b pb-3 mb-6">🌐 Social Media Links</h3>
-
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label class="block text-xs font-bold text-blue-600 mb-1">Facebook URL</label>
-                                <input v-model="form.facebook_url" type="url" placeholder="https://facebook.com/yourpage" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-pink-600 mb-1">Instagram URL</label>
-                                <input v-model="form.instagram_url" type="url" placeholder="https://instagram.com/yourpage" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-pink-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-sky-500 mb-1">Twitter (X) URL</label>
-                                <input v-model="form.twitter_url" type="url" placeholder="https://twitter.com/yourpage" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-sky-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-blue-700 mb-1">LinkedIn URL</label>
-                                <input v-model="form.linkedin_url" type="url" placeholder="https://linkedin.com/in/yourpage" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-blue-700">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-red-600 mb-1">YouTube Channel URL</label>
-                                <input v-model="form.youtube_url" type="url" placeholder="https://youtube.com/c/yourchannel" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-red-500">
-                            </div>
-                            <div>
-                                <label class="block text-xs font-bold text-emerald-600 mb-1">WhatsApp Number</label>
-                                <input v-model="form.whatsapp_number" type="text" placeholder="+8801XXXXXXXXX" class="w-full px-3 py-2 border border-slate-300 rounded-lg outline-none focus:border-emerald-500">
-                            </div>
+                            <div><label class="block text-xs font-bold text-blue-600 mb-1">Facebook</label><input v-model="form.facebook" type="url" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></div>
+                            <div><label class="block text-xs font-bold text-pink-600 mb-1">Instagram</label><input v-model="form.instagram" type="url" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></div>
+                            <div><label class="block text-xs font-bold text-sky-500 mb-1">Twitter (X)</label><input v-model="form.twitter" type="url" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></div>
+                            <div><label class="block text-xs font-bold text-blue-700 mb-1">LinkedIn</label><input v-model="form.linkedin" type="url" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></div>
+                            <div><label class="block text-xs font-bold text-red-600 mb-1">YouTube</label><input v-model="form.youtube" type="url" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></div>
+                            <div><label class="block text-xs font-bold text-emerald-600 mb-1">WhatsApp</label><input v-model="form.whatsapp" type="text" class="w-full px-3 py-2 border border-slate-300 rounded-lg"></div>
                         </div>
                     </div>
 
-                    <div class="mt-10 pt-6 border-t border-slate-100 flex justify-end">
+                    <div class="mt-8 pt-6 border-t border-slate-100 flex justify-end">
                         <button @click="saveSettings" :disabled="saving" class="bg-indigo-600 hover:bg-indigo-700 text-white font-black px-8 py-3 rounded-lg shadow-lg transition-all flex items-center gap-2 disabled:opacity-50">
                             <span>💾</span> {{ saving ? 'Saving...' : 'Save Settings' }}
                         </button>
                     </div>
-                </div>
 
+                </div>
             </div>
         </div>
     </AdminLayout>

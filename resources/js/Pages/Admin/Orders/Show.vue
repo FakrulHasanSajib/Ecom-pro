@@ -15,17 +15,42 @@ const API_URL = 'http://127.0.0.1:73/api/admin';
 const PUBLIC_API_URL = 'http://127.0.0.1:73/api/public';
 const ASSET_URL = 'http://127.0.0.1:73/storage';
 
-// সেটিংসের জন্য হেল্পার ফাংশন
-const normalize = (str) => str ? String(str).replace(/[_-\s]+/g, '').toLowerCase() : '';
+// 🔥 ফুলপ্রুফ সেটিংস হেল্পার (ডাটাবেস থেকে যেকোনো ফরম্যাটের ডাটা রিড করতে পারবে)
 const getSetting = (group, key, defaultValue = '') => {
     if (!settings.value) return defaultValue;
-    const targetGroup = Object.keys(settings.value).find(k => normalize(k) === normalize(group));
-    if (targetGroup && Array.isArray(settings.value[targetGroup])) {
-        const item = settings.value[targetGroup].find(s => normalize(s.key) === normalize(key) || normalize(s.name) === normalize(key));
-        if (item && item.value !== null && item.value !== '') {
-            return item.type === 'image' ? item.value_url : item.value;
+
+    // ১. ডাটা যদি Flat Array হয়
+    if (Array.isArray(settings.value)) {
+        const item = settings.value.find(s => s.key === key || s.name === key);
+        if (item && item.value) {
+            if (item.type === 'image' || String(item.value).match(/\.(jpeg|jpg|png|gif|svg|webp)$/i)) {
+                return String(item.value).startsWith('http') ? item.value : `${ASSET_URL}/${item.value}`;
+            }
+            return item.value;
         }
     }
+    // ২. ডাটা যদি Grouped Object হয় (যেমন: { general: [...], social: [...] })
+    else if (typeof settings.value === 'object') {
+        const targetGroup = Object.keys(settings.value).find(k => k.toLowerCase() === group.toLowerCase());
+        if (targetGroup && Array.isArray(settings.value[targetGroup])) {
+            const item = settings.value[targetGroup].find(s => s.key === key || s.name === key);
+            if (item && item.value) {
+                if (item.type === 'image' || String(item.value).match(/\.(jpeg|jpg|png|gif|svg|webp)$/i)) {
+                    return String(item.value).startsWith('http') ? item.value : `${ASSET_URL}/${item.value}`;
+                }
+                return item.value;
+            }
+        }
+        // ৩. ডাটা যদি সরাসরি Key-Value Object হয় (যেমন: { site_name: 'E-Shop', site_logo: 'logo.png' })
+        else if (settings.value[key]) {
+            const val = settings.value[key];
+            if (typeof val === 'string' && val.match(/\.(jpeg|jpg|png|gif|svg|webp)$/i) && !val.startsWith('http')) {
+                return `${ASSET_URL}/${val}`;
+            }
+            return val;
+        }
+    }
+
     return defaultValue;
 };
 
@@ -36,11 +61,12 @@ const fetchOrderAndSettings = async () => {
 
         const [orderRes, settingsRes] = await Promise.all([
             axios.get(`${API_URL}/orders/${orderId}`, { headers: { Authorization: `Bearer ${token}` } }),
-            axios.get(`${PUBLIC_API_URL}/settings`) // ডাইনামিক লোগো ও এড্রেস আনার জন্য
+            axios.get(`${PUBLIC_API_URL}/settings`)
         ]);
 
         order.value = orderRes.data.data || {};
-        settings.value = settingsRes.data?.data || {};
+        // 🔥 API রেসপন্সে .data এর ভেতর সরাসরি অবজেক্ট থাকতে পারে, তাই দুটিই চেক করা হলো
+        settings.value = settingsRes.data?.data || settingsRes.data || {};
 
     } catch (error) {
         console.error("Failed to load order details:", error);
@@ -86,7 +112,7 @@ onMounted(() => {
 
 <template>
     <AdminLayout>
-        <div class="max-w-5xl mx-auto pb-10">
+        <div class="max-w-5xl mx-auto pb-10 mt-6">
             <div v-if="loading" class="flex flex-col items-center justify-center py-20">
                 <div class="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
                 <span class="text-slate-500 font-bold mt-4 animate-pulse">Loading Invoice...</span>
@@ -113,12 +139,12 @@ onMounted(() => {
                     <div class="flex flex-col md:flex-row justify-between items-start border-b border-slate-200 pb-8 mb-8 relative z-10">
                         <div class="flex flex-col gap-2">
                             <div class="mb-2">
-                                <img v-if="getSetting('general', 'site_logo')" :src="getSetting('general', 'site_logo')" class="h-12 w-auto object-contain print:max-h-12" alt="Company Logo">
-                                <h1 v-else class="text-3xl font-black text-indigo-600 tracking-tight">{{ getSetting('general', 'site_name', 'E-Shop') }}</h1>
+                                <img v-if="getSetting('general', 'site_logo')" :src="getSetting('general', 'site_logo')" class="h-16 w-auto object-contain print:max-h-16" alt="Company Logo">
+                                <h1 v-else class="text-3xl font-black text-indigo-600 tracking-tight uppercase">{{ getSetting('general', 'site_name', 'E-Shop') }}</h1>
                             </div>
-                            <p class="text-slate-500 text-sm mt-1 max-w-xs leading-relaxed"><strong class="text-slate-700">A:</strong> {{ getSetting('general', 'address', '123 E-commerce Street, Dhaka, Bangladesh') }}</p>
-                            <p class="text-slate-500 text-sm"><strong class="text-slate-700">P:</strong> {{ getSetting('general', 'phone', '+880 1234 567 890') }}</p>
-                            <p class="text-slate-500 text-sm"><strong class="text-slate-700">E:</strong> {{ getSetting('general', 'email', 'support@eshop.com') }}</p>
+                            <p class="text-slate-500 text-sm mt-1 max-w-xs leading-relaxed"><strong class="text-slate-700">Address:</strong> {{ getSetting('general', 'address', '123 E-commerce Street, Dhaka, Bangladesh') }}</p>
+                            <p class="text-slate-500 text-sm"><strong class="text-slate-700">Phone:</strong> {{ getSetting('general', 'phone', '+880 1234 567 890') }}</p>
+                            <p class="text-slate-500 text-sm"><strong class="text-slate-700">Email:</strong> {{ getSetting('general', 'email', 'support@eshop.com') }}</p>
                         </div>
 
                         <div class="text-left md:text-right mt-6 md:mt-0">
@@ -132,8 +158,8 @@ onMounted(() => {
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10 relative z-10">
-                        <div class="bg-slate-50 p-5 rounded-xl border border-slate-100 print:bg-transparent print:border-none print:p-0">
-                            <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 print:text-slate-500">Bill To:</h4>
+                        <div class="bg-indigo-50/50 p-5 rounded-xl border border-indigo-100 print:bg-transparent print:border-none print:p-0">
+                            <h4 class="text-xs font-black text-indigo-400 uppercase tracking-widest mb-3 print:text-slate-500">Bill To:</h4>
                             <p class="text-lg font-bold text-slate-800">{{ order.name }}</p>
                             <p class="text-sm font-medium text-slate-600 mt-2 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-500" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" /></svg> {{ order.phone }}</p>
                             <p class="text-sm font-medium text-slate-600 mt-1 flex items-start gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-indigo-500 mt-0.5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg> <span class="flex-1">{{ order.address }}<br>{{ order.area || '' }}</span></p>
@@ -209,7 +235,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* ================= PRINT CSS (MAGIC FIX FOR EMPTY PDF) ================= */
+/* ================= MAGIC PRINT CSS ================= */
 @media print {
     /* ১. পুরো পেজের অহেতুক জিনিসগুলো লুকানো */
     body * {
@@ -222,7 +248,7 @@ onMounted(() => {
         print-color-adjust: exact !important;
     }
 
-    /* ৩. শুধুমাত্র ইনভয়েস এরিয়াকে ভিজিবল করা এবং ফুল স্ক্রিন করা */
+    /* ৩. শুধুমাত্র ইনভয়েস এরিয়াকে ভিজিবল করা এবং ফুল স্ক্রিন করা */
     #printable-invoice, #printable-invoice * {
         visibility: visible;
     }
@@ -239,7 +265,7 @@ onMounted(() => {
         height: auto !important;
     }
 
-    /* ৪. পেজ সাইজ A4 করে দেওয়া */
+    /* ৪. পেজ সাইজ A4 করে দেওয়া */
     @page {
         size: A4 portrait;
         margin: 15mm;
