@@ -5,25 +5,11 @@ import axios from 'axios';
 import { useCartStore } from '../../stores/cart';
 import { useAuthStore } from '../../stores/auth';
 import Swal from 'sweetalert2';
-import {
-    SfButton,
-    SfIconShoppingCart,
-    SfIconFavorite,
-    SfIconFavoriteFilled,
-    SfLoaderCircular,
-    SfIconPerson,
-    SfIconSearch,
-    SfIconClose,
-    SfIconStar,
-    SfIconPackage,
-    SfIconLocalShipping
-} from '@storefront-ui/vue';
 
 const router = useRouter();
 const cartStore = useCartStore();
 const authStore = useAuthStore();
 
-// State
 const products = ref([]);
 const categories = ref([]);
 const featuredProducts = ref([]);
@@ -31,74 +17,70 @@ const loading = ref(true);
 const initialLoading = ref(true);
 const wishlist = ref([]);
 const showBackToTop = ref(false);
+const activeProductTab = ref('all');
 
-// 🔥 Dynamic Sliders & Settings State
 const sliders = ref([]);
 const currentSlide = ref(0);
 const settings = ref({});
 
-// Filters
+const countdown = ref({ h: '00', m: '00', s: '00' });
+let countdownInterval = null;
+
 const searchQuery = ref('');
 const selectedCategory = ref(null);
 const sortOption = ref('');
 const minPrice = ref('');
 const maxPrice = ref('');
-const priceRange = ref([0, 100000]);
 
-// Backend URL
 const backendUrl = 'http://127.0.0.1:73';
 
-// Computed
 const activeFilterCount = computed(() => {
-    let count = 0;
-    if (selectedCategory.value) count++;
-    if (sortOption.value) count++;
-    if (minPrice.value || maxPrice.value) count++;
-    if (searchQuery.value) count++;
-    return count;
+    let c = 0;
+    if (selectedCategory.value) c++;
+    if (sortOption.value) c++;
+    if (minPrice.value || maxPrice.value) c++;
+    if (searchQuery.value) c++;
+    return c;
 });
 
-const isInWishlist = (productId) => {
-    return wishlist.value.includes(productId);
-};
+const isInWishlist = (id) => wishlist.value.includes(id);
 
-// 🔥 Safe Computed Property for Sliders
 const heroBanners = computed(() => {
     if (!Array.isArray(sliders.value)) return [];
-    const mainBanners = sliders.value.filter(s => s.category_name === 'Slider' || s.category_name === 'Home Banner');
-    return mainBanners.length > 0 ? mainBanners : sliders.value;
+    const main = sliders.value.filter(s => s.category_name === 'Slider' || s.category_name === 'Home Banner');
+    return main.length > 0 ? main : sliders.value;
 });
 
-// 🔥 Settings Helper Function
-const normalize = (str) => {
-    return str ? String(str).replace(/[_-\s]+/g, '').toLowerCase() : '';
-};
+const filteredProducts = computed(() => {
+    if (activeProductTab.value === 'all') return products.value;
+    return products.value.filter(p => p.category?.slug === activeProductTab.value);
+});
 
+const categoryTabs = computed(() => {
+    const tabs = [{ slug: 'all', name: 'All Products' }];
+    categories.value.slice(0, 5).forEach(c => tabs.push({ slug: c.slug, name: c.name }));
+    return tabs;
+});
+
+const normalize = (str) => str ? String(str).replace(/[_\-\s]+/g, '').toLowerCase() : '';
 const getSetting = (group, key, defaultValue = '') => {
     if (!settings.value) return defaultValue;
-    const targetGroup = Object.keys(settings.value).find(k => normalize(k) === normalize(group));
-    if (targetGroup && Array.isArray(settings.value[targetGroup])) {
-        const item = settings.value[targetGroup].find(s =>
-            normalize(s.key) === normalize(key) ||
-            normalize(s.name) === normalize(key)
-        );
-        if (item && item.value !== null && item.value !== '') {
-            return item.type === 'image' ? item.value_url : item.value;
-        }
+    const tg = Object.keys(settings.value).find(k => normalize(k) === normalize(group));
+    if (tg && Array.isArray(settings.value[tg])) {
+        const item = settings.value[tg].find(s => normalize(s.key) === normalize(key) || normalize(s.name) === normalize(key));
+        if (item && item.value !== null && item.value !== '') return item.type === 'image' ? item.value_url : item.value;
     }
     return defaultValue;
 };
 
-// Methods
 const getImageUrl = (path) => {
-    if (!path) return 'https://placehold.co/600x400?text=No+Image';
+    if (!path) return 'https://placehold.co/300x300/f0fdf4/10b981?text=Product';
     return path.startsWith('http') ? path : `${backendUrl}/storage/${path}`;
 };
 
 const fetchData = async () => {
     try {
         loading.value = true;
-
         const params = {};
         if (searchQuery.value) params.search = searchQuery.value;
         if (selectedCategory.value) params.category_slug = selectedCategory.value;
@@ -106,7 +88,6 @@ const fetchData = async () => {
         if (minPrice.value) params.min_price = minPrice.value;
         if (maxPrice.value) params.max_price = maxPrice.value;
 
-        // Validated catch blocks to return proper fallback objects
         const [prodRes, catRes, featuredRes, sliderRes, settingRes] = await Promise.all([
             axios.get(`${backendUrl}/api/public/products`, { params }).catch(() => ({ data: [] })),
             axios.get(`${backendUrl}/api/public/categories`).catch(() => ({ data: [] })),
@@ -118,13 +99,11 @@ const fetchData = async () => {
         products.value = prodRes.data?.data || [];
         categories.value = catRes.data?.data || catRes.data || [];
         featuredProducts.value = featuredRes.data?.data || featuredRes.data || [];
-
-        const rawSliders = sliderRes.data?.data || sliderRes.data || [];
-        sliders.value = Array.isArray(rawSliders) ? rawSliders : [];
+        const raw = sliderRes.data?.data || sliderRes.data || [];
+        sliders.value = Array.isArray(raw) ? raw : [];
         settings.value = settingRes.data?.data || {};
-
-    } catch (error) {
-        console.error("Data fetch error:", error);
+    } catch (e) {
+        console.error(e);
     } finally {
         loading.value = false;
         initialLoading.value = false;
@@ -134,7 +113,7 @@ const fetchData = async () => {
 const filterByCategory = (slug) => {
     selectedCategory.value = selectedCategory.value === slug ? null : slug;
     fetchData();
-    document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth' });
 };
 
 const resetFilters = () => {
@@ -143,784 +122,609 @@ const resetFilters = () => {
     sortOption.value = '';
     minPrice.value = '';
     maxPrice.value = '';
-    priceRange.value = [0, 100000];
     fetchData();
 };
 
 const handleAddToCart = async (product) => {
     try {
         await cartStore.addToCart(product);
-        const Toast = Swal.mixin({
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 2000,
-            timerProgressBar: true
-        });
-
-        Toast.fire({
-            icon: 'success',
-            title: `<span class="text-sm font-medium">${product.name} added to cart</span>`,
-            background: '#1e1e2f',
-            color: '#fff'
-        });
-
-    } catch (error) {
-        Swal.fire({
-            icon: 'error',
-            title: 'Failed to add',
-            text: 'Please try again',
-            background: '#1e1e2f',
-            color: '#fff'
-        });
+        const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+        Toast.fire({ icon: 'success', title: `${product.name} added to cart` });
+    } catch {
+        Swal.fire({ icon: 'error', title: 'Failed', text: 'Please try again' });
     }
 };
 
-const toggleWishlist = (productId) => {
-    if (wishlist.value.includes(productId)) {
-        wishlist.value = wishlist.value.filter(id => id !== productId);
-        Swal.fire({
-            icon: 'info',
-            title: 'Removed from wishlist',
-            showConfirmButton: false,
-            timer: 1500,
-            background: '#1e1e2f',
-            color: '#fff'
-        });
-    } else {
-        wishlist.value.push(productId);
-        Swal.fire({
-            icon: 'success',
-            title: 'Added to wishlist',
-            showConfirmButton: false,
-            timer: 1500,
-            background: '#1e1e2f',
-            color: '#fff'
-        });
-    }
+const toggleWishlist = (id) => {
+    wishlist.value.includes(id)
+        ? (wishlist.value = wishlist.value.filter(x => x !== id))
+        : wishlist.value.push(id);
 };
 
-const navigateToProduct = (id) => {
-    router.push(`/product/${id}`);
-};
+const navigateToProduct = (id) => router.push(`/product/${id}`);
+const handleScroll = () => { showBackToTop.value = window.scrollY > 500; };
+const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
-const handleScroll = () => {
-    showBackToTop.value = window.scrollY > 500;
-};
-
-const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-};
-
-// 🔥 Auto Slider Timer Logic
 let slideInterval;
 const startSlider = () => {
     slideInterval = setInterval(() => {
-        if (heroBanners.value.length > 1) {
-            currentSlide.value = (currentSlide.value + 1) % heroBanners.value.length;
-        }
+        if (heroBanners.value.length > 1) currentSlide.value = (currentSlide.value + 1) % heroBanners.value.length;
     }, 5000);
 };
 
-// Debounced search
-let debounceTimer = null;
-watch(searchQuery, () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(fetchData, 500);
-});
+const startCountdown = () => {
+    let end = Date.now() + 3600000;
+    const tick = () => {
+        const diff = Math.max(0, end - Date.now());
+        countdown.value = {
+            h: String(Math.floor(diff / 3600000)).padStart(2, '0'),
+            m: String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0'),
+            s: String(Math.floor((diff % 60000) / 1000)).padStart(2, '0'),
+        };
+        if (diff === 0) end = Date.now() + 3600000;
+    };
+    tick();
+    countdownInterval = setInterval(tick, 1000);
+};
 
-watch([minPrice, maxPrice], () => {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(fetchData, 800);
-});
+let debounce = null;
+watch(searchQuery, () => { clearTimeout(debounce); debounce = setTimeout(fetchData, 500); });
+watch([minPrice, maxPrice], () => { clearTimeout(debounce); debounce = setTimeout(fetchData, 800); });
+watch(wishlist, (v) => localStorage.setItem('wishlist', JSON.stringify(v)), { deep: true });
 
 onMounted(() => {
     fetchData();
-    const savedWishlist = localStorage.getItem('wishlist');
-    if (savedWishlist) {
-        wishlist.value = JSON.parse(savedWishlist);
-    }
+    const saved = localStorage.getItem('wishlist');
+    if (saved) wishlist.value = JSON.parse(saved);
     window.addEventListener('scroll', handleScroll);
     startSlider();
+    startCountdown();
 });
 
 onUnmounted(() => {
     window.removeEventListener('scroll', handleScroll);
     clearInterval(slideInterval);
+    clearInterval(countdownInterval);
 });
-
-watch(wishlist, (newVal) => {
-    localStorage.setItem('wishlist', JSON.stringify(newVal));
-}, { deep: true });
 </script>
 
 <template>
-    <div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 font-sans antialiased">
+    <div class="min-h-screen bg-gray-50 font-sans antialiased text-gray-800">
 
-        <div v-if="initialLoading" class="fixed inset-0 bg-gradient-to-br from-indigo-950 via-purple-950 to-slate-950 z-[100] flex items-center justify-center">
+        <!-- Initial Loading -->
+        <div v-if="initialLoading" class="fixed inset-0 bg-white z-[100] flex items-center justify-center">
             <div class="text-center">
-                <div class="relative mb-8">
-                    <div class="w-32 h-32 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
-                    <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-4xl animate-bounce">🛍️</span>
-                    </div>
-                </div>
-                <h2 class="text-3xl font-black text-white mb-3">E-Shop</h2>
-                <p class="text-indigo-300/80">Loading amazing products for you...</p>
+                <div class="w-14 h-14 border-2 border-emerald-100 border-t-emerald-500 rounded-full animate-spin mx-auto mb-4"></div>
+                <p class="text-gray-400 text-sm">{{ getSetting('general', 'site_name', 'Loading…') }}</p>
             </div>
         </div>
 
-        <header class="bg-white/80 backdrop-blur-xl border-b border-indigo-100/50 sticky top-0 z-50 transition-all duration-300 shadow-lg">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+        <!-- ===== TOP BAR ===== -->
+        <div class="bg-emerald-600 text-white text-xs py-2 hidden md:block">
+            <div class="max-w-screen-xl mx-auto px-4 flex items-center justify-between">
+                <span>{{ getSetting('general', 'topbar_text', '🎉 Free shipping on orders over ৳500 | Use code: WELCOME10') }}</span>
+                <div class="flex items-center gap-5">
+                    <span v-if="getSetting('general', 'phone')">📞 {{ getSetting('general', 'phone') }}</span>
+                    <a v-if="getSetting('social', 'facebook')" :href="getSetting('social', 'facebook')" target="_blank" class="hover:underline">Facebook</a>
+                    <a v-if="getSetting('social', 'instagram')" :href="getSetting('social', 'instagram')" target="_blank" class="hover:underline">Instagram</a>
+                </div>
+            </div>
+        </div>
 
-                <router-link to="/" class="flex items-center gap-3 group">
-                    <img v-if="getSetting('general', 'site_logo')" :src="getSetting('general', 'site_logo')" class="h-10 w-auto object-contain transition-transform group-hover:scale-105" alt="Logo">
-                    <div v-else class="relative">
-                        <span class="text-4xl group-hover:scale-110 group-hover:rotate-12 transition-all duration-300 inline-block">🛍️</span>
-                        <div class="absolute -inset-2 bg-indigo-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+        <!-- ===== HEADER ===== -->
+        <header class="bg-white border-b border-gray-100 sticky top-0 z-50 shadow-sm">
+            <div class="max-w-screen-xl mx-auto px-4 h-16 flex items-center gap-4">
+                <!-- Logo -->
+                <router-link to="/" class="flex items-center gap-2 flex-shrink-0">
+                    <img v-if="getSetting('general', 'site_logo')" :src="getSetting('general', 'site_logo')" class="h-9 w-auto object-contain" alt="Logo" />
+                    <div v-else class="flex items-center gap-1.5">
+                        <div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center text-white font-black text-sm shadow-md shadow-emerald-200">S</div>
+                        <span class="font-black text-xl text-gray-900">{{ getSetting('general', 'site_name', 'Sellzy') }}</span>
                     </div>
-
-                    <span v-if="!getSetting('general', 'site_logo')" class="font-black text-3xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent tracking-tight">
-                        {{ getSetting('general', 'site_name', 'E-Shop') }}
-                    </span>
                 </router-link>
 
-                <div class="hidden md:flex flex-1 max-w-xl mx-10">
-                    <div class="relative w-full">
+                <!-- Search Bar -->
+                <div class="flex-1 max-w-2xl hidden md:flex">
+                    <div class="relative w-full flex rounded-full overflow-hidden border border-gray-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100 transition-all bg-gray-50">
+                        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">🔍</span>
                         <input
                             v-model="searchQuery"
                             type="text"
-                            placeholder="Search products..."
-                            class="w-full bg-white border-2 border-indigo-100 rounded-full py-4 pl-14 pr-14 text-sm focus:outline-none focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 transition-all shadow-sm"
+                            :placeholder="getSetting('general', 'search_placeholder', 'Search for products…')"
+                            class="flex-1 py-2.5 pl-10 pr-4 text-sm bg-transparent focus:outline-none"
                         />
-                        <span class="absolute left-5 top-1/2 -translate-y-1/2 text-indigo-400 text-xl">🔍</span>
-                        <button
-                            v-if="searchQuery"
-                            @click="searchQuery = ''"
-                            class="absolute right-5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-600 transition-colors"
-                        >
-                            ✕
+                        <button class="bg-emerald-500 hover:bg-emerald-600 text-white px-5 text-sm font-semibold transition-colors flex-shrink-0">
+                            Search
                         </button>
                     </div>
                 </div>
 
-                <div class="flex items-center gap-4">
-                    <button class="md:hidden p-3 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
-                        <span class="text-xl">🔍</span>
-                    </button>
-
+                <!-- Actions -->
+                <div class="flex items-center gap-2 ml-auto md:ml-0">
                     <template v-if="authStore.isAuthenticated">
-                        <router-link
-                            to="/admin/dashboard"
-                            class="flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-purple-50 text-indigo-700 font-semibold px-5 py-2.5 rounded-xl hover:from-indigo-100 hover:to-purple-100 transition-all border border-indigo-200/50 shadow-sm"
-                        >
-                            <span class="text-lg">👤</span>
-                            <span class="hidden sm:inline">Dashboard</span>
+                        <router-link to="/admin/dashboard" class="hidden sm:flex items-center gap-1.5 text-sm font-semibold text-gray-600 hover:text-emerald-600 px-3 py-2 rounded-lg hover:bg-emerald-50 transition-all">
+                            👤 Dashboard
                         </router-link>
                     </template>
                     <template v-else>
-                        <router-link to="/login">
-                            <button class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2.5 rounded-xl shadow-lg shadow-indigo-500/30 hover:shadow-xl transition-all">
-                                Sign In
-                            </button>
+                        <router-link to="/login" class="hidden sm:block text-sm font-semibold text-gray-600 hover:text-emerald-600 px-3 py-2 rounded-lg hover:bg-emerald-50 transition-all">
+                            Sign In
                         </router-link>
                     </template>
 
-                    <router-link to="/checkout" class="relative">
-                        <button class="p-3 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all relative">
-                            <span class="text-xl">🛒</span>
-                            <span v-if="cartStore.items.length" class="absolute -top-1 -right-1 bg-gradient-to-br from-red-500 to-rose-500 text-white text-xs font-bold rounded-full min-w-[22px] h-[22px] flex items-center justify-center border-2 border-white shadow-lg animate-pulse">
-                                {{ cartStore.items.length }}
-                            </span>
-                        </button>
+                    <router-link to="/checkout" class="relative flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-4 py-2 rounded-full text-sm transition-all shadow-sm shadow-emerald-200">
+                        🛒
+                        <span class="hidden sm:inline">Cart</span>
+                        <span v-if="cartStore.items.length" class="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center border-2 border-white">
+                            {{ cartStore.items.length }}
+                        </span>
                     </router-link>
                 </div>
             </div>
         </header>
 
-        <section class="relative bg-gradient-to-br from-slate-900 via-indigo-900 to-purple-900 text-white overflow-hidden min-h-[500px]">
-            <div class="absolute inset-0">
-                <div class="absolute inset-0 opacity-20"
-                     style="background-image: url('data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%239C92AC\' fill-opacity=\'0.05\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');">
-                </div>
-                <div class="absolute top-0 -left-40 w-80 h-80 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-                <div class="absolute top-0 -right-40 w-80 h-80 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-                <div class="absolute bottom-0 left-20 w-80 h-80 bg-pink-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
-            </div>
+        <!-- ===== HERO + CATEGORY SIDEBAR ===== -->
+        <section class="bg-white border-b border-gray-100">
+            <div class="max-w-screen-xl mx-auto px-4 py-5">
+                <div class="grid lg:grid-cols-[240px_1fr_200px] gap-4 min-h-[340px]">
 
-            <div class="max-w-7xl mx-auto px-6 py-24 md:py-32 relative z-10">
-                <transition name="slide-fade" mode="out-in">
-                    <div v-if="heroBanners.length > 0" :key="currentSlide" class="grid lg:grid-cols-2 gap-16 items-center">
-                        <div class="text-center lg:text-left">
-                            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-indigo-300 text-sm font-medium mb-8 animate-fade-in-up">
-                                <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                                {{ heroBanners[currentSlide].category_name || 'New Collection' }}
-                            </div>
-
-                            <h1 class="text-5xl md:text-7xl font-black leading-tight mb-6 animate-fade-in-up animation-delay-200 drop-shadow-lg">
-                                {{ heroBanners[currentSlide].title || 'Discover Tomorrow\'s Style Today' }}
-                            </h1>
-
-                            <p class="text-xl md:text-2xl text-indigo-200/90 max-w-2xl mx-auto lg:mx-0 mb-10 animate-fade-in-up animation-delay-400">
-                                {{ heroBanners[currentSlide].description || 'Premium curated products. Exceptional quality. Prices you\'ll love.' }}
-                            </p>
-
-                            <div class="flex flex-wrap gap-4 justify-center lg:justify-start animate-fade-in-up animation-delay-600">
-                                <a
-                                    :href="heroBanners[currentSlide].link || '/shop'"
-                                    class="bg-white text-indigo-950 hover:bg-gray-100 shadow-2xl shadow-indigo-500/30 rounded-full px-10 py-5 text-lg font-bold transition-all hover:scale-105 active:scale-95 group"
-                                >
-                                    Shop Now
-                                    <span class="ml-2 group-hover:translate-x-1 transition-transform inline-block">→</span>
-                                </a>
-
-                                <button
-                                    class="bg-white/10 backdrop-blur-sm border border-white/20 text-white px-10 py-5 rounded-full text-lg font-semibold hover:bg-white/20 transition-all hover:scale-105 active:scale-95"
-                                    @click="document.getElementById('categories-section').scrollIntoView({ behavior: 'smooth' })"
-                                >
-                                    Explore Categories
-                                </button>
-                            </div>
+                    <!-- LEFT: Category Sidebar -->
+                    <div class="hidden lg:flex flex-col bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+                        <div class="bg-emerald-500 text-white px-4 py-3 font-bold text-sm">
+                            ☰ {{ getSetting('general', 'categories_menu_title', 'All Categories') }}
                         </div>
-
-                        <div class="relative hidden lg:block animate-fade-in">
-                            <div class="absolute inset-0 bg-gradient-to-t from-indigo-900/50 via-transparent to-transparent rounded-3xl"></div>
-                            <img
-                                :src="heroBanners[currentSlide].image_url"
-                                class="rounded-3xl shadow-2xl object-cover w-full h-[450px] transform hover:scale-105 transition-transform duration-1000"
-                                alt="Hero Product"
-                            />
-                        </div>
-                    </div>
-
-                    <div v-else class="grid lg:grid-cols-2 gap-16 items-center">
-                        <div class="text-center lg:text-left">
-                            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-indigo-300 text-sm font-medium mb-8 animate-fade-in-up">
-                                <span class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-                                New Collection 2026
-                            </div>
-
-                            <h1 class="text-5xl md:text-7xl font-black leading-tight mb-6 animate-fade-in-up animation-delay-200">
-                                Discover
-                                <span class="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Tomorrow's</span>
-                                Style Today
-                            </h1>
-
-                            <p class="text-xl md:text-2xl text-indigo-200/90 max-w-2xl mx-auto lg:mx-0 mb-10 animate-fade-in-up animation-delay-400">
-                                Premium curated products. Exceptional quality.
-                                <span class="font-semibold text-white">Prices you'll love.</span>
-                            </p>
-
-                            <div class="flex flex-wrap gap-4 justify-center lg:justify-start animate-fade-in-up animation-delay-600">
-                                <button
-                                    class="bg-white text-indigo-950 hover:bg-gray-100 shadow-2xl shadow-indigo-500/30 rounded-full px-10 py-5 text-lg font-bold transition-all hover:scale-105 active:scale-95 group"
-                                    @click="$router.push('/shop')"
-                                >
-                                    Shop Now
-                                    <span class="ml-2 group-hover:translate-x-1 transition-transform inline-block">→</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div class="relative hidden lg:block animate-fade-in">
-                            <div class="absolute inset-0 bg-gradient-to-t from-indigo-900/50 via-transparent to-transparent rounded-3xl"></div>
-                            <img
-                                src="https://images.unsplash.com/photo-1523275335684-04c0c856c0e0?q=80&w=1200&auto=format&fit=crop"
-                                class="rounded-3xl shadow-2xl transform hover:scale-105 transition-transform duration-1000"
-                                alt="Hero Product"
-                            />
-                        </div>
-                    </div>
-                </transition>
-            </div>
-
-            <div v-if="heroBanners.length > 1" class="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-3 z-20">
-                <button
-                    v-for="(_, index) in heroBanners"
-                    :key="index"
-                    @click="currentSlide = index"
-                    :class="currentSlide === index ? 'w-10 bg-indigo-500' : 'w-3 bg-white/50 hover:bg-white/80'"
-                    class="h-3 rounded-full transition-all duration-500 shadow-md"
-                ></button>
-            </div>
-        </section>
-
-        <div class="bg-white border-b border-indigo-100 py-6">
-            <div class="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-6">
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-2xl">
-                        📦
-                    </div>
-                    <div>
-                        <div class="font-bold text-gray-900">Free Shipping</div>
-                        <div class="text-sm text-gray-600">On orders $50+</div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-2xl">
-                        🚚
-                    </div>
-                    <div>
-                        <div class="font-bold text-gray-900">Fast Delivery</div>
-                        <div class="text-sm text-gray-600">2-3 business days</div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-2xl">
-                        🔒
-                    </div>
-                    <div>
-                        <div class="font-bold text-gray-900">Secure Payment</div>
-                        <div class="text-sm text-gray-600">100% protected</div>
-                    </div>
-                </div>
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center text-2xl">
-                        💬
-                    </div>
-                    <div>
-                        <div class="font-bold text-gray-900">24/7 Support</div>
-                        <div class="text-sm text-gray-600">Live chat</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <section v-if="featuredProducts.length" class="max-w-7xl mx-auto px-6 py-20">
-            <div class="text-center mb-12">
-                <h2 class="text-4xl md:text-5xl font-black text-slate-900 mb-4">
-                    Featured
-                    <span class="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Products</span>
-                </h2>
-                <p class="text-xl text-gray-600 max-w-2xl mx-auto">
-                    Hand-picked items just for you
-                </p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div
-                    v-for="(product, index) in featuredProducts.slice(0, 3)"
-                    :key="product.id"
-                    class="group relative bg-white rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 cursor-pointer"
-                    :style="{ animationDelay: `${index * 200}ms` }"
-                    @click="navigateToProduct(product.id)"
-                >
-                    <div class="relative h-72 bg-gradient-to-br from-indigo-50 to-purple-50 p-8">
-                        <img
-                            :src="getImageUrl(product.thumbnail)"
-                            class="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700"
-                            alt=""
-                        />
-                        <div class="absolute top-4 left-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">
-                            Featured
-                        </div>
-                    </div>
-
-                    <div class="p-6">
-                        <h3 class="font-bold text-xl text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors line-clamp-2">
-                            {{ product.name }}
-                        </h3>
-                        <p class="text-gray-600 text-sm mb-4 line-clamp-2">{{ product.description || 'Premium quality product with exceptional features.' }}</p>
-
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <span class="text-2xl font-black text-slate-900">৳{{ product.sale_price || product.base_price }}</span>
-                                <span v-if="product.discount_price" class="ml-2 text-sm text-gray-500 line-through">৳{{ product.base_price }}</span>
-                            </div>
+                        <div class="flex-1 overflow-y-auto py-1">
                             <button
-                                @click.stop="handleAddToCart(product)"
-                                class="bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl transition-all hover:scale-110 active:scale-95 shadow-lg shadow-indigo-500/30"
+                                v-for="cat in categories.slice(0, 12)"
+                                :key="cat.id"
+                                @click="filterByCategory(cat.slug)"
+                                class="w-full text-left px-4 py-2.5 text-sm flex items-center justify-between group transition-colors"
+                                :class="selectedCategory === cat.slug ? 'text-emerald-600 bg-emerald-50 font-semibold' : 'text-gray-600 hover:text-emerald-600 hover:bg-emerald-50'"
                             >
-                                <span class="text-xl">🛒</span>
+                                <span>{{ cat.name }}</span>
+                                <span class="text-gray-300 group-hover:text-emerald-400">›</span>
                             </button>
+                            <div v-if="!categories.length" class="px-4 py-3 text-sm text-gray-400 italic">No categories found</div>
+                        </div>
+                    </div>
+
+                    <!-- CENTER: Main Slider -->
+                    <div class="relative rounded-2xl overflow-hidden bg-gradient-to-br from-emerald-50 to-teal-100 min-h-[340px] shadow-sm">
+                        <transition name="xfade" mode="out-in">
+                            <div v-if="heroBanners.length > 0" :key="currentSlide" class="absolute inset-0 flex items-center">
+                                <img v-if="heroBanners[currentSlide].image_url" :src="heroBanners[currentSlide].image_url" class="absolute inset-0 w-full h-full object-cover" alt="" />
+                                <div class="absolute inset-0 bg-gradient-to-r from-black/55 via-black/25 to-transparent"></div>
+                                <div class="relative z-10 px-10 text-white max-w-sm">
+                                    <span class="inline-block text-xs font-bold uppercase tracking-widest bg-emerald-500 px-3 py-1 rounded-full mb-3">
+                                        {{ heroBanners[currentSlide].category_name || getSetting('general', 'hero_badge', 'Exclusive Offer') }}
+                                    </span>
+                                    <h2 class="text-3xl md:text-4xl font-black leading-tight mb-3">
+                                        {{ heroBanners[currentSlide].title || getSetting('general', 'hero_title', 'Discover Your Best Products') }}
+                                    </h2>
+                                    <p class="text-sm text-white/75 mb-5">
+                                        {{ heroBanners[currentSlide].description || getSetting('general', 'hero_subtitle', 'Shop the best deals today.') }}
+                                    </p>
+                                    <a :href="heroBanners[currentSlide].link || '/shop'" class="inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-6 py-2.5 rounded-full text-sm transition-all shadow-lg hover:scale-105">
+                                        Shop Now →
+                                    </a>
+                                </div>
+                            </div>
+                            <div v-else class="absolute inset-0 flex items-center px-10">
+                                <div class="max-w-sm">
+                                    <span class="inline-block text-xs font-bold uppercase tracking-widest bg-emerald-500 text-white px-3 py-1 rounded-full mb-3">
+                                        {{ getSetting('general', 'hero_badge', 'Exclusive Offer') }}
+                                    </span>
+                                    <h2 class="text-3xl md:text-4xl font-black leading-tight mb-3 text-gray-900">
+                                        {{ getSetting('general', 'hero_title', 'Discover Your') }}
+                                        <span class="text-emerald-600"> {{ getSetting('general', 'hero_highlight', 'Best Products') }}</span>
+                                    </h2>
+                                    <p class="text-sm text-gray-500 mb-5">{{ getSetting('general', 'hero_subtitle', 'Quality products at unbeatable prices.') }}</p>
+                                    <button @click="$router.push('/shop')" class="inline-flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-6 py-2.5 rounded-full text-sm transition-all hover:scale-105">
+                                        Shop Now →
+                                    </button>
+                                </div>
+                            </div>
+                        </transition>
+                        <!-- Slider dots -->
+                        <div v-if="heroBanners.length > 1" class="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+                            <button v-for="(_, i) in heroBanners" :key="i" @click="currentSlide = i"
+                                :class="currentSlide === i ? 'w-5 bg-emerald-500' : 'w-2 bg-white/60 hover:bg-white'"
+                                class="h-2 rounded-full transition-all duration-300"></button>
+                        </div>
+                    </div>
+
+                    <!-- RIGHT: Promo Cards -->
+                    <div class="hidden lg:flex flex-col gap-3">
+                        <!-- Promo 1 -->
+                        <div
+                            class="flex-1 rounded-2xl overflow-hidden relative cursor-pointer group shadow-sm"
+                            :style="getSetting('general','promo1_bg') ? `background:url(${getSetting('general','promo1_bg')}) center/cover` : 'background: linear-gradient(135deg, #d1fae5, #6ee7b7)'"
+                            @click="$router.push(getSetting('general','promo1_link','/shop'))"
+                        >
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+                            <div class="relative z-10 p-4 h-full flex flex-col justify-end">
+                                <p class="text-[11px] font-bold text-emerald-200 mb-0.5">{{ getSetting('general','promo1_label','Up to 20% off') }}</p>
+                                <h3 class="font-black text-white text-base leading-tight">{{ getSetting('general','promo1_title','Your Daily Store') }}</h3>
+                                <span class="mt-2 text-xs text-white/75 group-hover:text-white font-semibold transition-colors">Shop Now →</span>
+                            </div>
+                        </div>
+                        <!-- Promo 2 -->
+                        <div
+                            class="flex-1 rounded-2xl overflow-hidden relative cursor-pointer group shadow-sm"
+                            :style="getSetting('general','promo2_bg') ? `background:url(${getSetting('general','promo2_bg')}) center/cover` : 'background: linear-gradient(135deg, #fef3c7, #fcd34d)'"
+                            @click="$router.push(getSetting('general','promo2_link','/shop'))"
+                        >
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
+                            <div class="relative z-10 p-4 h-full flex flex-col justify-end">
+                                <p class="text-[11px] font-bold text-amber-200 mb-0.5">{{ getSetting('general','promo2_label','Up to 30% off') }}</p>
+                                <h3 class="font-black text-white text-base leading-tight">{{ getSetting('general','promo2_title','Click. Shop. Smile.') }}</h3>
+                                <span class="mt-2 text-xs text-white/75 group-hover:text-white font-semibold transition-colors">Shop Now →</span>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </section>
 
-        <section v-if="categories.length" id="categories-section" class="max-w-7xl mx-auto px-6 py-20">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
-                <div>
-                    <h2 class="text-4xl md:text-5xl font-black text-slate-900 mb-4">
-                        Shop by
-                        <span class="bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">Category</span>
-                    </h2>
-                    <p class="text-xl text-gray-600">
-                        Explore our curated collections
-                    </p>
+        <!-- ===== CATEGORY SCROLLABLE ROW ===== -->
+        <section v-if="categories.length" class="bg-white border-b border-gray-100 shadow-sm">
+            <div class="max-w-screen-xl mx-auto px-4 py-4">
+                <div class="flex items-center gap-3 overflow-x-auto scrollbar-hide">
+                    <span class="text-xs font-bold text-gray-500 uppercase tracking-widest whitespace-nowrap flex-shrink-0">
+                        {{ getSetting('general','categories_title','Shop by Category') }} →
+                    </span>
+                    <button
+                        v-for="cat in categories"
+                        :key="cat.id"
+                        @click="filterByCategory(cat.slug)"
+                        class="flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap border transition-all flex-shrink-0"
+                        :class="selectedCategory === cat.slug
+                            ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-200'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-300 hover:text-emerald-600'"
+                    >
+                        <img v-if="cat.image" :src="getImageUrl(cat.image)" class="w-4 h-4 rounded-full object-cover" alt="" />
+                        {{ cat.name }}
+                    </button>
                 </div>
-                <router-link
-                    to="/categories"
-                    class="flex items-center gap-2 text-indigo-600 font-semibold hover:gap-3 transition-all group"
-                >
-                    View All Categories
-                    <span class="group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+        </section>
+
+        <!-- ===== TODAY'S FLASH DEALS with Countdown ===== -->
+        <section v-if="featuredProducts.length" class="max-w-screen-xl mx-auto px-4 py-10">
+            <!-- Section Header -->
+            <div class="flex items-center justify-between mb-5">
+                <div class="flex items-center gap-4 flex-wrap">
+                    <div>
+                        <h2 class="text-xl font-black text-gray-900">
+                            {{ getSetting('general','flash_title',"Today's Top Offers") }}
+                            <span class="text-red-500"> 🔥</span>
+                        </h2>
+                        <p class="text-xs text-gray-400 mt-0.5">{{ getSetting('general','flash_subtitle','Up to 69% discount for limited time') }}</p>
+                    </div>
+                    <!-- Live Countdown -->
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-xs text-gray-500 font-medium">Ends in:</span>
+                        <div class="flex items-center gap-1 font-black text-sm tabular-nums">
+                            <span class="bg-gray-900 text-white px-2 py-1 rounded-lg min-w-[30px] text-center">{{ countdown.h }}</span>
+                            <span class="text-gray-400">:</span>
+                            <span class="bg-gray-900 text-white px-2 py-1 rounded-lg min-w-[30px] text-center">{{ countdown.m }}</span>
+                            <span class="text-gray-400">:</span>
+                            <span class="bg-gray-900 text-white px-2 py-1 rounded-lg min-w-[30px] text-center">{{ countdown.s }}</span>
+                        </div>
+                    </div>
+                </div>
+                <router-link to="/shop" class="text-sm font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5 whitespace-nowrap">
+                    View All ›
                 </router-link>
             </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
+            <!-- Flash Products -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 <div
-                    v-for="(cat, index) in categories"
-                    :key="cat.id"
-                    @click="filterByCategory(cat.slug)"
-                    class="group relative overflow-hidden rounded-3xl bg-white border-2 border-indigo-100/50 hover:border-indigo-300 shadow-sm hover:shadow-xl transition-all duration-500 cursor-pointer animate-fade-in-up"
-                    :style="{ animationDelay: `${index * 100}ms` }"
+                    v-for="product in featuredProducts.slice(0, 6)"
+                    :key="product.id"
+                    class="bg-white border border-gray-100 rounded-2xl p-3 hover:shadow-md hover:border-emerald-100 transition-all cursor-pointer group"
+                    @click="navigateToProduct(product.id)"
                 >
-                    <div class="aspect-square overflow-hidden">
-                        <img
-                            v-if="cat.image"
-                            :src="getImageUrl(cat.image)"
-                            class="w-full h-full object-cover group-hover:scale-125 transition-transform duration-700"
-                            alt=""
-                        />
-                        <div v-else class="w-full h-full bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-5xl">
-                            📦
+                    <div class="relative mb-2.5">
+                        <span class="absolute top-0 left-0 z-10 text-[9px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full">SALE</span>
+                        <button @click.stop="toggleWishlist(product.id)" class="absolute top-0 right-0 z-10 w-7 h-7 bg-white rounded-full shadow flex items-center justify-center hover:scale-110 transition-transform">
+                            <span class="text-xs">{{ isInWishlist(product.id) ? '❤️' : '🤍' }}</span>
+                        </button>
+                        <div class="aspect-square bg-gray-50 rounded-xl overflow-hidden flex items-center justify-center p-2">
+                            <img :src="getImageUrl(product.thumbnail)" class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" alt="" />
                         </div>
                     </div>
-
-                    <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-
-                    <div class="absolute bottom-0 left-0 right-0 p-4 text-white transform translate-y-2 group-hover:translate-y-0 transition-transform">
-                        <p class="font-bold text-lg drop-shadow-md">{{ cat.name }}</p>
-                        <p class="text-sm text-white/80 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Shop now →</p>
+                    <p class="text-[9px] text-emerald-500 font-bold uppercase tracking-wider truncate">{{ product.category?.name || 'Product' }}</p>
+                    <h3 class="text-xs font-semibold text-gray-800 line-clamp-2 mt-0.5 mb-2 leading-snug group-hover:text-emerald-600 transition-colors">{{ product.name }}</h3>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-sm font-black text-gray-900">৳{{ product.sale_price || product.base_price }}</span>
+                            <span v-if="product.discount_price" class="ml-1 text-xs text-gray-400 line-through">৳{{ product.base_price }}</span>
+                        </div>
+                        <button @click.stop="handleAddToCart(product)" class="w-7 h-7 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg flex items-center justify-center font-bold text-base transition-all hover:scale-110 active:scale-95">+</button>
                     </div>
-
-                    <div v-if="selectedCategory === cat.slug" class="absolute top-3 right-3 w-3 h-3 bg-indigo-500 rounded-full animate-pulse"></div>
                 </div>
             </div>
         </section>
 
-        <section id="products-section" class="max-w-7xl mx-auto px-6 pb-24">
-            <div class="bg-white/70 backdrop-blur-xl rounded-3xl border-2 border-indigo-100/50 shadow-lg p-6 mb-12 sticky top-24 z-40">
-                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center text-white shadow-lg text-2xl">
-                            ⚙️
-                        </div>
-                        <div>
-                            <h3 class="text-2xl font-bold text-slate-900">
-                                {{ selectedCategory ? 'Curated Selection' : 'All Products' }}
-                            </h3>
-                            <p class="text-gray-600 text-sm">
-                                Showing
-                                <span class="font-semibold text-indigo-600">{{ products.length }}</span>
-                                premium items
-                                <span v-if="activeFilterCount" class="ml-2 px-2 py-0.5 bg-indigo-100 text-indigo-600 rounded-full text-xs">
-                                    {{ activeFilterCount }} filters active
-                                </span>
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="flex flex-wrap gap-3">
-                        <select
-                            v-model="sortOption"
-                            @change="fetchData"
-                            class="bg-white border-2 border-indigo-100 hover:border-indigo-300 rounded-xl px-4 py-2.5 text-gray-700 focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all cursor-pointer"
-                        >
-                            <option value="">Sort: Featured</option>
-                            <option value="price_low">Price: Low to High</option>
-                            <option value="price_high">Price: High to Low</option>
-                            <option value="newest">Newest First</option>
-                        </select>
-
-                        <button
-                            v-if="activeFilterCount"
-                            @click="resetFilters"
-                            class="flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 px-5 py-2.5 rounded-xl font-medium transition-all border-2 border-red-100 hover:border-red-300"
-                        >
-                            <span>✕</span>
-                            Clear ({{ activeFilterCount }})
-                        </button>
-                    </div>
+        <!-- ===== ALL PRODUCTS with TABS ===== -->
+        <section id="products-section" class="max-w-screen-xl mx-auto px-4 pb-14">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-black text-gray-900">
+                    {{ getSetting('general','products_section_title','Our Products') }}
+                </h2>
+                <div class="flex items-center gap-2">
+                    <select v-model="sortOption" @change="fetchData" class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:border-emerald-400 bg-white text-gray-600">
+                        <option value="">Sort: Default</option>
+                        <option value="price_low">Price ↑</option>
+                        <option value="price_high">Price ↓</option>
+                        <option value="newest">Newest</option>
+                    </select>
+                    <button v-if="activeFilterCount" @click="resetFilters" class="text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors">
+                        ✕ Clear ({{ activeFilterCount }})
+                    </button>
                 </div>
             </div>
 
-            <div v-if="loading" class="flex flex-col items-center justify-center py-40">
-                <div class="relative mb-8">
-                    <div class="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
-                </div>
-                <p class="text-gray-600 font-medium">Loading exclusive collection...</p>
+            <!-- Category Tabs -->
+            <div class="flex gap-2 overflow-x-auto scrollbar-hide mb-6 pb-1">
+                <button
+                    v-for="tab in categoryTabs"
+                    :key="tab.slug"
+                    @click="activeProductTab = tab.slug"
+                    class="px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all border flex-shrink-0"
+                    :class="activeProductTab === tab.slug
+                        ? 'bg-gray-900 text-white border-gray-900'
+                        : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400 hover:text-gray-700'"
+                >
+                    {{ tab.name }}
+                </button>
             </div>
 
-            <div v-else-if="products.length" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+            <!-- Loading -->
+            <div v-if="loading" class="flex items-center justify-center py-24">
+                <div class="w-10 h-10 border-2 border-gray-100 border-t-emerald-500 rounded-full animate-spin"></div>
+            </div>
+
+            <!-- Grid -->
+            <div v-else-if="filteredProducts.length" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 <div
-                    v-for="(product, index) in products"
+                    v-for="(product, i) in filteredProducts"
                     :key="product.id"
-                    class="group bg-white rounded-3xl overflow-hidden hover:shadow-2xl hover:shadow-indigo-500/20 transition-all duration-500 hover:-translate-y-2 animate-fade-in-up cursor-pointer"
-                    :style="{ animationDelay: `${index * 100}ms` }"
+                    class="bg-white border border-gray-100 rounded-2xl p-3 hover:shadow-md hover:border-emerald-100 transition-all cursor-pointer group animate-fade-in"
+                    :style="{ animationDelay: `${i * 35}ms` }"
                     @click="navigateToProduct(product.id)"
                 >
-                    <div class="relative h-64 bg-gradient-to-br from-indigo-50 to-purple-50 p-6 overflow-hidden">
-                        <div v-if="product.discount_price" class="absolute top-4 left-4 z-10 bg-gradient-to-r from-red-500 to-rose-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
+                    <div class="relative mb-2.5">
+                        <div v-if="product.discount_price" class="absolute top-0 left-0 z-10 text-[9px] font-bold bg-red-500 text-white px-2 py-0.5 rounded-full">
                             -{{ Math.round((product.base_price - product.sale_price) / product.base_price * 100) }}%
                         </div>
-
-                        <button
-                            @click.stop="toggleWishlist(product.id)"
-                            class="absolute top-4 right-4 z-10 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full shadow-lg flex items-center justify-center hover:bg-red-50 transition-all"
-                        >
-                            <span :class="isInWishlist(product.id) ? 'text-red-500' : 'text-gray-400'" class="text-xl">
-                                {{ isInWishlist(product.id) ? '❤️' : '🤍' }}
-                            </span>
+                        <button @click.stop="toggleWishlist(product.id)" class="absolute top-0 right-0 z-10 w-7 h-7 bg-white rounded-full shadow flex items-center justify-center hover:scale-110 transition-transform opacity-0 group-hover:opacity-100">
+                            <span class="text-xs">{{ isInWishlist(product.id) ? '❤️' : '🤍' }}</span>
                         </button>
-
-                        <img
-                            :src="getImageUrl(product.thumbnail)"
-                            class="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700"
-                            alt=""
-                        />
-
-                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                            <button
-                                @click.stop="navigateToProduct(product.id)"
-                                class="bg-white text-indigo-600 px-6 py-3 rounded-full font-semibold transform translate-y-4 group-hover:translate-y-0 transition-transform shadow-xl"
-                            >
+                        <div class="aspect-square bg-gray-50 rounded-xl overflow-hidden flex items-center justify-center p-2">
+                            <img :src="getImageUrl(product.thumbnail)" class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" alt="" />
+                        </div>
+                        <!-- Quick View -->
+                        <div class="absolute inset-0 bg-black/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <button @click.stop="navigateToProduct(product.id)" class="bg-white text-gray-900 text-xs font-bold px-4 py-1.5 rounded-full shadow-lg translate-y-2 group-hover:translate-y-0 transition-transform">
                                 Quick View
                             </button>
                         </div>
                     </div>
-
-                    <div class="p-6">
-                        <p class="text-xs text-indigo-600 font-semibold uppercase tracking-wide mb-2">
-                            {{ product.category?.name || 'Collection' }}
-                        </p>
-
-                        <h3 class="font-bold text-lg text-slate-900 mb-2 line-clamp-2 group-hover:text-indigo-600 transition-colors">
-                            {{ product.name }}
-                        </h3>
-
-                        <div class="flex items-end justify-between mt-4 pt-4 border-t border-indigo-100">
-                            <div>
-                                <span class="text-2xl font-black text-slate-900">৳{{ product.sale_price || product.base_price }}</span>
-                                <span v-if="product.discount_price" class="block text-sm text-gray-500 line-through">৳{{ product.base_price }}</span>
-                            </div>
-
-                            <button
-                                @click.stop="handleAddToCart(product)"
-                                class="bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-xl transition-all hover:scale-110 active:scale-95 shadow-lg shadow-indigo-500/30"
-                            >
-                                <span class="text-xl">🛒</span>
-                            </button>
+                    <p class="text-[9px] text-emerald-500 font-bold uppercase tracking-wider truncate">{{ product.category?.name || 'Product' }}</p>
+                    <h3 class="text-xs font-semibold text-gray-800 line-clamp-2 mt-0.5 mb-2 leading-snug group-hover:text-emerald-600 transition-colors">{{ product.name }}</h3>
+                    <div class="flex items-center gap-1 mb-2">
+                        <span class="text-yellow-400 text-xs">★★★★★</span>
+                        <span class="text-[10px] text-gray-400">({{ product.reviews_count || 0 }})</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="text-sm font-black text-gray-900">৳{{ product.sale_price || product.base_price }}</span>
+                            <span v-if="product.discount_price" class="ml-1 text-xs text-gray-400 line-through">৳{{ product.base_price }}</span>
                         </div>
+                        <button @click.stop="handleAddToCart(product)" class="w-7 h-7 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg flex items-center justify-center font-bold text-base transition-all hover:scale-110 active:scale-95 shadow-sm">+</button>
                     </div>
                 </div>
             </div>
 
-            <div v-else class="text-center py-40 bg-white/70 backdrop-blur-xl rounded-3xl border-2 border-indigo-100/50 shadow-lg">
-                <div class="w-32 h-32 mx-auto mb-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-full flex items-center justify-center text-6xl">
-                    🔍
-                </div>
-                <h3 class="text-3xl font-black text-slate-800 mb-4">No Products Found</h3>
-                <p class="text-gray-600 text-lg max-w-md mx-auto mb-8">
-                    We couldn't find any products matching your criteria. Try adjusting your filters.
-                </p>
-                <button
-                    @click="resetFilters"
-                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-10 py-4 rounded-2xl font-bold text-lg shadow-xl shadow-indigo-500/30"
-                >
-                    Clear All Filters
-                </button>
+            <!-- Empty -->
+            <div v-else class="text-center py-24">
+                <div class="text-5xl mb-4">🔍</div>
+                <h3 class="text-xl font-bold text-gray-700 mb-2">No Products Found</h3>
+                <p class="text-gray-400 text-sm mb-6">Try adjusting your filters or search term.</p>
+                <button @click="resetFilters" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-6 py-2.5 rounded-full text-sm transition-all">Clear Filters</button>
             </div>
         </section>
 
-        <section class="bg-gradient-to-r from-indigo-600 to-purple-600 py-20">
-            <div class="max-w-7xl mx-auto px-6 text-center">
-                <h2 class="text-4xl md:text-5xl font-black text-white mb-4">Stay in the Loop</h2>
-                <p class="text-xl text-indigo-100 mb-10 max-w-2xl mx-auto">
-                    Subscribe to get exclusive offers, early access to sales, and new arrivals.
-                </p>
+        <!-- ===== PROMO BANNER ===== -->
+        <section class="max-w-screen-xl mx-auto px-4 pb-12">
+            <div
+                class="rounded-3xl overflow-hidden relative min-h-[180px] flex items-center px-10 shadow-lg"
+                :style="getSetting('general','promo_banner_bg') ? `background:url(${getSetting('general','promo_banner_bg')}) center/cover` : 'background: linear-gradient(135deg, #064e3b 0%, #065f46 100%)'"
+            >
+                <div class="absolute inset-0 bg-gradient-to-r from-black/40 to-transparent"></div>
+                <div class="relative z-10 text-white max-w-lg">
+                    <span class="text-xs font-bold uppercase tracking-widest text-emerald-300 mb-2 block">
+                        {{ getSetting('general','promo_banner_label','Enjoy 20% savings') }}
+                    </span>
+                    <h2 class="text-2xl font-black mb-4">
+                        {{ getSetting('general','promo_banner_title','Your Daily Store. Essentials, deals, and more.') }}
+                    </h2>
+                    <button @click="$router.push('/shop')" class="inline-flex items-center gap-2 bg-white text-emerald-700 font-bold px-6 py-2.5 rounded-full text-sm hover:bg-emerald-50 transition-all shadow-lg">
+                        {{ getSetting('general','promo_banner_btn','Shop Now') }} →
+                    </button>
+                </div>
+            </div>
+        </section>
 
-                <form @submit.prevent class="flex flex-col sm:flex-row gap-4 max-w-lg mx-auto">
+        <!-- ===== NEWSLETTER ===== -->
+        <section class="bg-gray-900 py-14">
+            <div class="max-w-screen-xl mx-auto px-4 text-center">
+                <h2 class="text-2xl font-black text-white mb-2">
+                    {{ getSetting('general','newsletter_title','Subscribe to our newsletter') }}
+                </h2>
+                <p class="text-gray-400 text-sm mb-7 max-w-md mx-auto">
+                    {{ getSetting('general','newsletter_subtitle','Stay updated with news, updates, and exclusive offers.') }}
+                </p>
+                <form @submit.prevent class="flex gap-2 max-w-md mx-auto">
                     <input
                         type="email"
-                        placeholder="Enter your email"
-                        class="flex-1 bg-white/10 backdrop-blur-sm border-2 border-white/20 rounded-xl px-6 py-4 text-white placeholder-indigo-200 focus:outline-none focus:border-white/50 transition-all"
-                        required
+                        :placeholder="getSetting('general','newsletter_placeholder','Enter your email address')"
+                        class="flex-1 bg-gray-800 border border-gray-700 text-white rounded-full px-5 py-2.5 text-sm focus:outline-none focus:border-emerald-500 transition-all placeholder-gray-500"
                     />
-                    <button class="bg-white text-indigo-600 hover:bg-indigo-50 px-8 py-4 rounded-xl font-bold text-lg shadow-xl transition-all hover:scale-105 active:scale-95">
-                        Subscribe
+                    <button class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-6 py-2.5 rounded-full text-sm transition-all flex-shrink-0">
+                        {{ getSetting('general','newsletter_btn','Subscribe') }}
                     </button>
                 </form>
-
-                <p class="text-indigo-200 text-sm mt-4">
-                    No spam. Unsubscribe anytime.
-                </p>
             </div>
         </section>
 
-        <footer class="bg-gradient-to-b from-slate-950 to-black text-gray-300 pt-20 pb-12">
-            <div class="max-w-7xl mx-auto px-6">
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 mb-16">
+        <!-- ===== FOOTER ===== -->
+        <footer class="bg-gray-950 text-gray-500 pt-14 pb-8">
+            <div class="max-w-screen-xl mx-auto px-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 mb-12">
                     <div class="lg:col-span-2">
-                        <div class="flex items-center gap-3 mb-6">
-                            <img v-if="getSetting('general', 'site_logo')" :src="getSetting('general', 'site_logo')" class="h-10 w-auto filter brightness-0 invert" alt="Logo">
-                            <span v-else class="font-black text-3xl text-white tracking-tight">{{ getSetting('general', 'site_name', 'E-Shop') }}</span>
+                        <div class="flex items-center gap-2 mb-4">
+                            <img v-if="getSetting('general','site_logo')" :src="getSetting('general','site_logo')" class="h-8 w-auto filter brightness-0 invert opacity-70" alt="Logo" />
+                            <span v-else class="font-black text-xl text-white">{{ getSetting('general','site_name','Sellzy') }}</span>
                         </div>
-                        <p class="text-gray-400 text-sm leading-relaxed mb-6 max-w-md">
-                            {{ getSetting('general', 'site_description', 'Premium shopping experience — curated, secure, delivered fast. We bring you the best products from around the world at prices you\'ll love.') }}
+                        <p class="text-sm leading-relaxed mb-5 max-w-xs text-gray-600">
+                            {{ getSetting('general','site_description','Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.') }}
                         </p>
-
-                        <div class="flex gap-4">
-                            <a v-if="getSetting('social', 'facebook')" :href="getSetting('social', 'facebook')" target="_blank" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-blue-600 transition-colors text-xl">
-                                📘
-                            </a>
-                            <a v-if="getSetting('social', 'instagram')" :href="getSetting('social', 'instagram')" target="_blank" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-pink-600 transition-colors text-xl">
-                                📷
-                            </a>
-                            <a v-if="getSetting('social', 'youtube')" :href="getSetting('social', 'youtube')" target="_blank" class="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center hover:bg-red-600 transition-colors text-xl">
-                                ▶️
-                            </a>
+                        <div class="flex gap-2">
+                            <a v-if="getSetting('social','facebook')" :href="getSetting('social','facebook')" target="_blank" class="social-pill">f</a>
+                            <a v-if="getSetting('social','instagram')" :href="getSetting('social','instagram')" target="_blank" class="social-pill">ig</a>
+                            <a v-if="getSetting('social','youtube')" :href="getSetting('social','youtube')" target="_blank" class="social-pill">yt</a>
+                            <a v-if="getSetting('social','twitter')" :href="getSetting('social','twitter')" target="_blank" class="social-pill">𝕏</a>
                         </div>
                     </div>
-
                     <div>
-                        <h3 class="text-white font-bold text-lg mb-6">Contact Info</h3>
-                        <ul class="space-y-3 text-sm">
-                            <li class="flex gap-2"><span>📞</span> {{ getSetting('general', 'phone', '+880123456789') }}</li>
-                            <li class="flex gap-2"><span>✉️</span> {{ getSetting('general', 'email', 'support@eshop.com') }}</li>
-                            <li class="flex gap-2"><span>📍</span> {{ getSetting('general', 'address', 'Dhaka, Bangladesh') }}</li>
+                        <h4 class="f-head">About</h4>
+                        <ul class="space-y-2.5 text-sm">
+                            <li><a href="/about" class="f-link">About Us</a></li>
+                            <li><a href="/terms" class="f-link">Terms & Conditions</a></li>
+                            <li><a href="/privacy" class="f-link">Privacy Policy</a></li>
+                            <li><a href="/contact" class="f-link">Contact Us</a></li>
+                            <li><a href="/faq" class="f-link">FAQ</a></li>
                         </ul>
                     </div>
-
                     <div>
-                        <h3 class="text-white font-bold text-lg mb-6">Quick Links</h3>
-                        <ul class="space-y-3 text-sm">
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Home</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Shop</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">About Us</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Contact</a></li>
+                        <h4 class="f-head">My Account</h4>
+                        <ul class="space-y-2.5 text-sm">
+                            <li><a href="/my-account" class="f-link">Your Account</a></li>
+                            <li><a href="/wishlist" class="f-link">Wishlist</a></li>
+                            <li><a href="/orders" class="f-link">Track Order</a></li>
+                            <li><a href="/refund" class="f-link">Return Policy</a></li>
                         </ul>
                     </div>
-
                     <div>
-                        <h3 class="text-white font-bold text-lg mb-6">Legal</h3>
+                        <h4 class="f-head">Contact</h4>
                         <ul class="space-y-3 text-sm">
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Privacy Policy</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Terms & Conditions</a></li>
-                            <li><a href="#" class="hover:text-indigo-400 transition-colors">Refund Policy</a></li>
+                            <li v-if="getSetting('general','address')" class="flex gap-2">
+                                <span class="text-emerald-500 flex-shrink-0 mt-0.5">📍</span>
+                                <span>{{ getSetting('general','address') }}</span>
+                            </li>
+                            <li v-if="getSetting('general','phone')" class="flex gap-2">
+                                <span class="text-emerald-500 flex-shrink-0">📞</span>
+                                <a :href="`tel:${getSetting('general','phone')}`" class="f-link">{{ getSetting('general','phone') }}</a>
+                            </li>
+                            <li v-if="getSetting('general','email')" class="flex gap-2">
+                                <span class="text-emerald-500 flex-shrink-0">✉</span>
+                                <a :href="`mailto:${getSetting('general','email')}`" class="f-link">{{ getSetting('general','email') }}</a>
+                            </li>
                         </ul>
                     </div>
                 </div>
 
-                <div class="pt-10 border-t border-slate-800 text-center text-sm text-gray-500">
-                    {{ getSetting('general', 'copyright', '© 2026 E-Shop. Built with ❤️ in Bangladesh') }}
+                <div class="border-t border-gray-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-600">
+                    <span>{{ getSetting('general','copyright','© 2026 Sellzy. All Rights Reserved.') }}</span>
+                    <div class="flex gap-2">
+                        <span v-if="getSetting('payment','bkash_enabled')" class="pay-b text-pink-400">bKash</span>
+                        <span v-if="getSetting('payment','nagad_enabled')" class="pay-b text-orange-400">Nagad</span>
+                        <span v-if="getSetting('payment','rocket_enabled')" class="pay-b text-purple-400">Rocket</span>
+                        <span v-if="getSetting('payment','sslcommerz_enabled')" class="pay-b text-green-400">SSL</span>
+                        <span v-if="getSetting('payment','cod_enabled')" class="pay-b text-blue-400">COD</span>
+                    </div>
                 </div>
             </div>
         </footer>
 
+        <!-- Back to top -->
         <button
             v-if="showBackToTop"
             @click="scrollToTop"
-            class="fixed bottom-8 right-8 w-14 h-14 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl shadow-2xl shadow-indigo-500/50 flex items-center justify-center transition-all hover:scale-110 active:scale-95 z-50 animate-bounce text-2xl"
-        >
-            ↑
-        </button>
+            class="fixed bottom-6 right-6 w-11 h-11 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-200 flex items-center justify-center hover:scale-110 z-50 transition-all text-lg font-bold"
+        >↑</button>
     </div>
 </template>
 
 <style scoped>
-/* Slider Fade Animation */
-.slide-fade-enter-active {
-    transition: all 0.6s ease-out;
+.xfade-enter-active { transition: opacity 0.5s ease; }
+.xfade-leave-active { transition: opacity 0.3s ease; }
+.xfade-enter-from, .xfade-leave-to { opacity: 0; }
+
+.f-head {
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 16px;
 }
-.slide-fade-leave-active {
-    transition: all 0.4s cubic-bezier(1, 0.5, 0.8, 1);
+.f-link {
+    color: #6b7280;
+    text-decoration: none;
+    transition: color 0.2s;
 }
-.slide-fade-enter-from {
-    transform: translateX(30px);
-    opacity: 0;
+.f-link:hover { color: #10b981; }
+
+.social-pill {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #6b7280;
+    text-decoration: none;
+    transition: all 0.2s;
 }
-.slide-fade-leave-to {
-    transform: translateX(-30px);
-    opacity: 0;
+.social-pill:hover {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.35);
+    color: #10b981;
 }
 
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(30px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes blob {
-    0% { transform: translate(0px, 0px) scale(1); }
-    33% { transform: translate(30px, -50px) scale(1.1); }
-    66% { transform: translate(-20px, 20px) scale(0.9); }
-    100% { transform: translate(0px, 0px) scale(1); }
-}
-
-@keyframes float {
-    0% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
-    100% { transform: translateY(0px); }
-}
-
-.animate-fade-in-up {
-    animation: fadeInUp 0.6s ease-out forwards;
-    opacity: 0;
-}
-
-.animate-blob {
-    animation: blob 7s infinite;
-}
-
-.animate-float {
-    animation: float 3s ease-in-out infinite;
-}
-
-.animation-delay-200 {
-    animation-delay: 200ms;
-}
-
-.animation-delay-400 {
-    animation-delay: 400ms;
-}
-
-.animation-delay-600 {
-    animation-delay: 600ms;
-}
-
-.animation-delay-800 {
-    animation-delay: 800ms;
-}
-
-.animation-delay-1000 {
-    animation-delay: 1000ms;
-}
-
-.animation-delay-2000 {
-    animation-delay: 2s;
-}
-
-.animation-delay-4000 {
-    animation-delay: 4s;
-}
-
-html {
-    scroll-behavior: smooth;
-}
-
-::-webkit-scrollbar {
-    width: 10px;
-}
-
-::-webkit-scrollbar-track {
-    background: #f1f1f1;
-}
-
-::-webkit-scrollbar-thumb {
-    background: linear-gradient(to bottom, #6366f1, #a855f7);
+.pay-b {
+    padding: 2px 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
     border-radius: 5px;
+    font-size: 0.65rem;
+    font-weight: 700;
 }
 
-::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(to bottom, #4f46e5, #9333ea);
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
+.animate-fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+    opacity: 0;
+}
+
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: #f9fafb; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #10b981; }
 </style>
