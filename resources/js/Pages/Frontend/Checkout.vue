@@ -10,13 +10,49 @@ const cartStore = useCartStore();
 
 const form = ref({ name: '', phone: '', address: '', area: 'inside_dhaka', payment_method: 'cod' });
 const isSubmitting = ref(false);
-const shippingCost = computed(() => form.value.area === 'inside_dhaka' ? 70 : 130);
+
+// 🔥 ডাইনামিক ডেলিভারি চার্জের জন্য ভেরিয়েবল
+const insideDhakaCharge = ref(70);  // ডিফল্ট মান
+const outsideDhakaCharge = ref(130); // ডিফল্ট মান
+
+// 🔥 ডাটাবেস থেকে সেটিংস (ডেলিভারি চার্জ) নিয়ে আসা
+const fetchSettings = async () => {
+    try {
+        const res = await axios.get('http://127.0.0.1:73/api/public/settings');
+        const data = res.data?.data || res.data || {};
+
+        // ডাটাবেস থেকে shipping_inside_dhaka এবং shipping_outside_dhaka বের করা
+        if (typeof data === 'object') {
+            Object.keys(data).forEach(group => {
+                const items = data[group];
+                if (Array.isArray(items)) {
+                    items.forEach(item => {
+                        const key = item.key || item.name;
+                        if (key === 'shipping_inside_dhaka' && item.value) {
+                            insideDhakaCharge.value = Number(item.value);
+                        }
+                        if (key === 'shipping_outside_dhaka' && item.value) {
+                            outsideDhakaCharge.value = Number(item.value);
+                        }
+                    });
+                }
+            });
+        }
+    } catch (error) {
+        console.error("Failed to load delivery settings:", error);
+    }
+};
+
+// 🔥 ডাইনামিক চার্জ ক্যালকুলেশন
+const shippingCost = computed(() => form.value.area === 'inside_dhaka' ? insideDhakaCharge.value : outsideDhakaCharge.value);
 const grandTotal = computed(() => cartStore.totalPrice + shippingCost.value);
 
 onMounted(() => {
     if (cartStore.items.length === 0) {
         Swal.fire({ title: 'Empty Cart!', text: 'আপনার কার্ট খালি! অনুগ্রহ করে প্রোডাক্ট যুক্ত করুন।', icon: 'warning', confirmButtonColor: '#6366f1' }).then(() => router.push('/'));
     }
+    // পেজ লোড হলে সেটিংস কল করবে
+    fetchSettings();
 });
 
 const placeOrder = async () => {
@@ -57,7 +93,6 @@ const getImageUrl = (path) => { if (!path) return 'https://placehold.co/100x100?
     <div class="co-root">
         <div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
 
-        <!-- HEADER -->
         <header class="hdr">
             <div class="hdr-inner">
                 <div @click="goBack" class="brand">
@@ -85,10 +120,8 @@ const getImageUrl = (path) => { if (!path) return 'https://placehold.co/100x100?
             </button>
 
             <div class="co-layout">
-                <!-- LEFT -->
                 <div class="co-left">
 
-                    <!-- Shipping -->
                     <div class="card">
                         <div class="card-hd">
                             <div class="nbadge">01</div>
@@ -118,7 +151,7 @@ const getImageUrl = (path) => { if (!path) return 'https://placehold.co/100x100?
                                     <span class="ai">🏙️</span>
                                     <div class="flex-1">
                                         <p class="at">Inside Dhaka</p>
-                                        <p class="ach">৳70 · 1–2 days</p>
+                                        <p class="ach">৳{{ insideDhakaCharge }} · 1–2 days</p>
                                     </div>
                                     <svg v-if="form.area==='inside_dhaka'" class="ck" fill="currentColor" width="18" height="18" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
                                 </label>
@@ -127,7 +160,7 @@ const getImageUrl = (path) => { if (!path) return 'https://placehold.co/100x100?
                                     <span class="ai">🚚</span>
                                     <div class="flex-1">
                                         <p class="at">Outside Dhaka</p>
-                                        <p class="ach">৳130 · 3–5 days</p>
+                                        <p class="ach">৳{{ outsideDhakaCharge }} · 3–5 days</p>
                                     </div>
                                     <svg v-if="form.area==='outside_dhaka'" class="ck" fill="currentColor" width="18" height="18" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
                                 </label>
@@ -139,7 +172,6 @@ const getImageUrl = (path) => { if (!path) return 'https://placehold.co/100x100?
                         </div>
                     </div>
 
-                    <!-- Payment -->
                     <div class="card">
                         <div class="card-hd">
                             <div class="nbadge">02</div>
@@ -165,7 +197,6 @@ const getImageUrl = (path) => { if (!path) return 'https://placehold.co/100x100?
                         </div>
                     </div>
 
-                    <!-- Trust bar -->
                     <div class="trust">
                         <span>🔒 Secure</span><span class="td"></span>
                         <span>↩️ Easy Returns</span><span class="td"></span>
@@ -175,7 +206,6 @@ const getImageUrl = (path) => { if (!path) return 'https://placehold.co/100x100?
 
                 </div>
 
-                <!-- RIGHT -->
                 <div class="co-right">
                     <div class="summary sticky top-24">
                         <div class="sm-rainbow"></div>

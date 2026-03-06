@@ -903,7 +903,7 @@ onUnmounted(() => {
 
         <!-- Footer Bottom -->
         <div class="border-t border-white/5 pt-7 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p class="text-xs text-gray-600">{{ getSetting('general','copyright','© 2026 Sellzy. All Rights Reserved.') }}</p>
+            <p class="text-xs text-gray-600">{{ getSetting('general','copyright','© 2026 Sajib. All Rights Reserved.') }}</p>
             <!-- Payment Methods -->
             <div class="flex items-center gap-2 flex-wrap">
                 <span v-if="getSetting('payment','bkash_enabled')"      class="pay-badge text-pink-400   border-pink-900/30">bKash</span>
