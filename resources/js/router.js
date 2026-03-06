@@ -23,6 +23,7 @@ import Brands from './Pages/Admin/Attributes/Brands.vue';
 import Colors from './Pages/Admin/Attributes/Colors.vue';
 import Sizes from './Pages/Admin/Attributes/Sizes.vue';
 import BlockedIps from '@/Pages/Admin/Security/BlockedIps.vue';
+import AdminShippingSettings from '@/Pages/Admin/Shipping/Index.vue';
 
 // ==========================================
 // ২. ফ্রন্টএন্ড/কাস্টমার পেজ ইমপোর্টস
@@ -173,6 +174,11 @@ const routes = [
     component: BlockedIps,
     meta: { requiresAuth: true }
 },
+{
+        path: '/admin/shipping',
+        name: 'admin.shipping.index',
+        component: AdminShippingSettings
+    },
 
     // ==========================================
     // --- 404 Not Found (এটি সবসময় একদম শেষে থাকতে হবে) ---
